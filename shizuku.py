@@ -14,7 +14,7 @@ API_HASH = "a614a27fc39c3e54bf2e15da2a971e78"       # Thay bằng API Hash của
 BOT_TOKEN = "7573169920:AAFLHoWTkCQJLTyCqn9fpwMk_3iXm2FHiAc"     # Thay bằng Bot Token của bạn
 
 # Danh sách các owner (các owner này được phép dùng lệnh quản trị)
-OWNER_IDS = [5867402532, 6370114941]  # VD: [5867402532, 123456789, 987654321]
+OWNER_IDS = [5867402532, 6370114941, 6922955912]  # VD: [5867402532, 123456789, 987654321]
 
 # -------------------------------
 # KHỞI TẠO DATABASE SQLite
@@ -99,7 +99,7 @@ admin_protection_messages = [
     "Sếp ơi, nó là admin đó bình tĩnh🐶.",
     "Này này, admin này còn giá trị lợi dụng đấy sếp🌚.",
     "Hãy vào cài đặt sa thải admin rồi ban hoặc mute nhé!",
-    "Ôi, admin này làm sếp không vui, để em xử lý cho!🐮"
+    "Ôi, admin này làm sếp không vui, để em xử lý cho! 🐮"
 ]
 
 group_greeting_messages = [
@@ -145,7 +145,7 @@ welcome_messages = [
 app = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 # -------------------------------
-# Decorator: chỉ cho phép các owner sử dụng lệnh quản trị
+# Decorator: chỉ cho phép các owner sử dụng lệnh quản trị (áp dụng cho các lệnh nhạy cảm)
 # -------------------------------
 def owner_only(func):
     async def wrapper(client, message):
@@ -156,89 +156,65 @@ def owner_only(func):
     return wrapper
 
 # -------------------------------
-# Lệnh /xinfo hoặc /kiemtra: Xem thông tin người dùng (Sổ Hộ Khẩu)
+# SỰ KIỆN: Khi có thành viên mới gia nhập nhóm, lưu thông tin và gửi lời chào.
 # -------------------------------
-@app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
-async def xinfo_handler(client, message):
-    # Xác định đối tượng cần kiểm tra:
-    if message.reply_to_message:
-        target = message.reply_to_message.from_user
-        chat_id = message.chat.id
+@app.on_message(filters.new_chat_members)
+async def new_member_handler(client, message):
+    chat_id = str(message.chat.id)
+    me = await client.get_me()
+    bot_added = any(member.id == me.id for member in message.new_chat_members)
+    if bot_added:
+        greeting = random.choice(group_greeting_messages)
+        await message.reply(greeting)
+        inviter = message.from_user
+        group_link = f"https://t.me/{message.chat.username}" if message.chat.username else "Không có liên kết"
+        info = (f"🤖 **Bot được thêm vào nhóm!**\n"
+                f"💬 **Chat ID:** `{message.chat.id}`\n"
+                f"👤 **Người thêm:** {inviter.first_name if inviter else 'Không rõ'}\n"
+                f"🆔 **ID người thêm:** `{inviter.id if inviter else 'Không rõ'}`\n"
+                f"🔗 **Link nhóm:** {group_link}")
+        for owner in OWNER_IDS:
+            await client.send_message(owner, info)
+        async for member in client.iter_chat_members(message.chat.id):
+            save_user(message.chat.id, member.user, message.date)
     else:
-        args = message.text.split(maxsplit=1)
-        if len(args) >= 2:
-            identifier = args[1]
-            if identifier.isdigit():
-                identifier = int(identifier)
-            try:
-                target = await client.get_users(identifier)
-            except Exception:
-                await message.reply(f"❌ Không thể tìm thấy người dùng với thông tin {args[1]}")
-                return
-            chat_id = message.chat.id if message.chat else None
-        else:
-            target = message.from_user
-            chat_id = message.chat.id if message.chat else None
-
-    info = "🪪 **Sổ Hộ Khẩu:**\n"
-    info += f"**Họ:** {target.last_name if target.last_name else 'Không có'}\n"
-    info += f"**Tên:** {target.first_name}\n"
-    info += f"**ID:** `{target.id}`\n"
-    info += f"**Username:** {'@' + target.username if target.username else 'Không có'}\n"
-    info += f"**Hồ sơ:** [Nhấn vào đây](tg://user?id={target.id})\n"
-
-    # Xác định trạng thái theo vai trò
-    owner_statuses = ["Vua", "Trùm Cuối", "Hoàng Thượng", "Chủ Tịch", "Trùm Mafia", "Tổng Tư Lệnh", "Hiệu Trưởng"]
-    admin_statuses = ["Cận Vệ", "Ăn Bám", "Lính Có Quyền Admin", "Quan Lớn", "Hộ Vệ", "Tay Sai"]
-    member_statuses = ["Người Hầu", "Lính Lát", "Thực Tập Sinh", "Người Lạ", "Trẻ Sơ Sinh"]
-
-    role = ""
-    # Nếu có thông tin chat (group) thì kiểm tra quyền:
-    if chat_id:
-        try:
-            member = await client.get_chat_member(chat_id, target.id)
-            if target.id in OWNER_IDS:
-                role = random.choice(owner_statuses)
-            elif member.status in ["administrator", "creator"]:
-                role = random.choice(admin_statuses)
-            else:
-                role = random.choice(member_statuses)
-        except Exception:
-            role = random.choice(member_statuses)
-    else:
-        if target.id in OWNER_IDS:
-            role = random.choice(owner_statuses)
-        else:
-            role = random.choice(member_statuses)
-    icons = ["🔥", "💥", "✨", "🎉", "😎", "🚀", "🌟", "🥳", "💎", "🔔"]
-    info += f"**Trạng thái:** {role} {random.choice(icons)}"
-    await message.reply(info)
+        for member in message.new_chat_members:
+            save_user(message.chat.id, member, message.date)
+        welcome = random.choice(welcome_messages)
+        for member in message.new_chat_members:
+            if member.id != me.id:
+                try:
+                    await client.send_message(message.chat.id, welcome)
+                except Exception:
+                    pass
 
 # -------------------------------
-# Lệnh /report: Báo cáo tin nhắn cần report.
-# Mọi người có thể sử dụng.
+# Lệnh /batdau: Gửi một câu chào ngẫu nhiên
+# -------------------------------
+@app.on_message(filters.command("batdau") & filters.group)
+async def batdau_command(client, message):
+    await message.reply(random.choice(welcome_messages))
+
+# -------------------------------
+# Lệnh /report: Báo cáo tin nhắn cần report (mọi người đều có thể dùng)
 # -------------------------------
 @app.on_message(filters.command("report"))
 async def report_handler(client, message):
     if not message.reply_to_message:
         await message.reply("Vui lòng trả lời lại tin nhắn cần báo cáo.")
         return
-
     reported_msg = message.reply_to_message
     reporter = message.from_user
     reported_user = reported_msg.from_user
-
     reporter_fullname = reporter.first_name + ((" " + reporter.last_name) if reporter.last_name else "")
     group_report_message = f"{reporter_fullname} đã gửi báo cáo đoạn chat của thành viên cho quản trị viên, đề nghị @OverFlowVIP kiểm tra và xử lý."
     await message.reply(group_report_message)
-
     if message.chat.username:
         message_link = f"https://t.me/{message.chat.username}/{reported_msg.message_id}"
     else:
         chat_id_str = str(message.chat.id)
         chat_link_id = chat_id_str.replace("-100", "") if chat_id_str.startswith("-100") else chat_id_str
         message_link = f"https://t.me/c/{chat_link_id}/{reported_msg.message_id}"
-
     reported_fullname = reported_user.first_name + ((" " + reported_user.last_name) if reported_user.last_name else "")
     report_details = (
         f"📝 Báo cáo từ: {reporter_fullname} (ID: {reporter.id})\n"
@@ -253,8 +229,7 @@ async def report_handler(client, message):
             pass
 
 # -------------------------------
-# Lệnh /xban (alias /block): BLOCK (ban) theo ID/username hoặc reply.
-# Xoá tin nhắn nếu dùng reply. PM báo cáo cho các owner.
+# Lệnh /xban (alias /block): BLOCK (ban) theo ID/username hoặc reply (xoá tin nhắn nếu có)
 # -------------------------------
 @app.on_message(filters.command(["xban", "block"]) & filters.group)
 @owner_only
@@ -282,7 +257,6 @@ async def xban_user(client, message):
             return
         maybe_time = args[2] if len(args) >= 3 and args[2][-1] in "smhdw" else None
         reason = args[3] if (maybe_time and len(args) >= 4) else (args[2] if len(args) >= 3 and not maybe_time else "Không có lý do")
-    
     chat_id = message.chat.id
     try:
         member = await client.get_chat_member(chat_id, user.id)
@@ -292,14 +266,12 @@ async def xban_user(client, message):
     except Exception:
         await message.reply(random.choice(admin_protection_messages))
         return
-
     duration_seconds = convert_time_to_seconds(maybe_time) if maybe_time else None
     try:
         await client.ban_chat_member(chat_id, user.id)
     except Exception as e:
         await message.reply(f"❌ Không thể BLOCK người dùng! Lỗi: {e}")
         return
-
     ban_message = f"🚨 **Đã BLOCK người dùng!**\n" \
                   f"🆔 **ID:** `{user.id}`\n" \
                   f"👤 **Họ & Tên:** {user.first_name} {user.last_name if user.last_name else ''}\n" \
@@ -311,7 +283,6 @@ async def xban_user(client, message):
     else:
         ban_message += "🚷 **BLOCK vĩnh viễn!**"
     await message.reply(ban_message)
-
     pm_message = (f"[Ban Report]\nChat: {message.chat.title if message.chat.title else message.chat.id}\n"
                   f"User: {user.first_name} {user.last_name if user.last_name else ''} (ID: {user.id}, Username: {'@'+user.username if user.username else 'Không có'})\n"
                   f"Lý do: {reason}")
@@ -320,7 +291,6 @@ async def xban_user(client, message):
             await client.send_message(owner, pm_message)
         except Exception:
             pass
-
     if duration_seconds:
         await asyncio.sleep(duration_seconds)
         try:
@@ -331,8 +301,8 @@ async def xban_user(client, message):
             await message.reply(f"❌ Không thể mở BLOCK! Lỗi: {e}")
 
 # -------------------------------
-# Lệnh /xmute (alias /xtuhinh): MUTE theo ID/username hoặc reply.
-# Xoá tin nhắn nếu dùng reply. PM báo cáo cho các owner.
+# Lệnh /xmute (alias /xtuhinh): MUTE theo ID/username hoặc reply (xoá tin nhắn nếu có).
+# Khi mute, bot tắt hoàn toàn quyền gửi tin nhắn và media.
 # -------------------------------
 @app.on_message(filters.command(["xmute", "xtuhinh"]) & filters.group)
 @owner_only
@@ -360,7 +330,6 @@ async def xmute_user(client, message):
             return
         maybe_time = args[2] if len(args) >= 3 and args[2][-1] in "smhdw" else None
         reason = args[3] if (maybe_time and len(args) >= 4) else (args[2] if len(args) >= 3 and not maybe_time else "Không có lý do")
-    
     chat_id = message.chat.id
     try:
         member = await client.get_chat_member(chat_id, user.id)
@@ -370,23 +339,21 @@ async def xmute_user(client, message):
     except Exception:
         await message.reply(random.choice(admin_protection_messages))
         return
-
     duration_seconds = convert_time_to_seconds(maybe_time) if maybe_time else None
+    # Tắt hoàn toàn quyền gửi
+    mute_permissions = ChatPermissions(
+        can_send_messages=False,
+        can_send_media_messages=False,
+        can_send_polls=False,
+        can_send_other_messages=False,
+        can_add_web_page_previews=False,
+        can_invite_users=False
+    )
     try:
-        await client.restrict_chat_member(chat_id, user.id, 
-            ChatPermissions(
-                can_send_messages=True,
-                can_send_media_messages=True,
-                can_send_polls=True,
-                can_send_other_messages=True,
-                can_add_web_page_previews=True,
-                can_invite_users=True
-            )
-        )
+        await client.restrict_chat_member(chat_id, user.id, mute_permissions)
     except Exception as e:
         await message.reply(f"❌ Không thể MUTE người dùng! Lỗi: {e}")
         return
-
     mute_message = f"🔇 **Đã MUTE người dùng!**\n" \
                    f"🆔 **ID:** `{user.id}`\n" \
                    f"👤 **Họ & Tên:** {user.first_name} {user.last_name if user.last_name else ''}\n" \
@@ -398,7 +365,6 @@ async def xmute_user(client, message):
     else:
         mute_message += "🔕 **MUTE vĩnh viễn!**"
     await message.reply(mute_message)
-
     pm_message = (f"[Mute Report]\nChat: {message.chat.title if message.chat.title else message.chat.id}\n"
                   f"User: {user.first_name} {user.last_name if user.last_name else ''} (ID: {user.id}, Username: {'@'+user.username if user.username else 'Không có'})\n"
                   f"Lý do: {reason}")
@@ -407,7 +373,6 @@ async def xmute_user(client, message):
             await client.send_message(owner, pm_message)
         except Exception:
             pass
-
     if duration_seconds:
         await asyncio.sleep(duration_seconds)
         full_permissions = ChatPermissions(
@@ -455,8 +420,7 @@ async def xanxa_user(client, message):
         await message.reply(f"❌ Không thể xóa án ban! Lỗi: {e}")
 
 # -------------------------------
-# Lệnh /xunmute: Mở mute và cấp lại đầy đủ quyền theo ID/username hoặc reply.
-# (Các quyền được cấp lại bao gồm: gửi tin nhắn, ảnh, video, nhãn dán/GIF, nhạc, tệp, tin nhắn thoại, tin nhắn video, gửi liên kết nhúng)
+# Lệnh /xunmute: Mở mute và cấp lại đầy đủ quyền (gửi tin nhắn, ảnh, video, sticker/GIF, nhạc, tệp, tin nhắn thoại, tin nhắn video, liên kết nhúng)
 # -------------------------------
 @app.on_message(filters.command("xunmute") & filters.group)
 @owner_only
@@ -494,8 +458,7 @@ async def xunmute_user(client, message):
 
 # -------------------------------
 # Lệnh “shizuku”: Cho phép owner gọi bot bằng cụm “shizuku ơi” hoặc “shizuku,”.
-# Nếu không có lệnh phụ, bot liệt kê các lệnh có sẵn.
-# Nếu có lệnh: ban, block, mute, unban, unmute (hoặc ummute) sau cụm gọi,
+# Nếu có lệnh: ban/block, mute, unban, unmute (hoặc ummute) sau trigger,
 # bot chuyển đổi thành lệnh tương ứng và thực thi (bao gồm thời gian và lý do).
 # -------------------------------
 @app.on_message(filters.regex(r"(?i)^shizuku(,| ơi)"))
@@ -516,7 +479,8 @@ async def shizuku_handler(client, message):
                             "shizuku ơi ban/block <ID/username> [thời gian] [lý do]\n"
                             "shizuku ơi mute <ID/username> [thời gian] [lý do]\n"
                             "shizuku ơi unban <ID/username>\n"
-                            "shizuku ơi unmute/ummute <ID/username>")
+                            "shizuku ơi unmute/ummute <ID/username>\n"
+                            "shizuku, bạn được ai tạo ra")
         return
     parts = command_text.split()
     cmd = parts[0].lower()
@@ -536,28 +500,14 @@ async def shizuku_handler(client, message):
         new_text = "/xunmute " + " ".join(parts[1:])
         message.text = new_text
         await xunmute_user(client, message)
+    # Nếu gọi lệnh creator: "shizuku, bạn được ai tạo ra" hoặc tương tự
+    elif "được ai tạo ra" in command_text.lower():
+        await message.reply("Tôi được @OverFlowVIP và (Chat GPT plus) tạo ra🐶")
     else:
-        await message.reply("Lệnh không hợp lệ. Bạn có thể dùng: ban/block, mute, unban, unmute.")
+        await message.reply("Lệnh không hợp lệ. Bạn có thể dùng: ban/block, mute, unban, unmute, hoặc 'shizuku, bạn được ai tạo ra'.")
 
 # -------------------------------
-# Lệnh /kickbot: Kick bot ra khỏi nhóm (chỉ dùng qua tin nhắn riêng với bot)
-# -------------------------------
-@app.on_message(filters.command("kickbot") & filters.private)
-@owner_only
-async def kickbot_handler(client, message):
-    args = message.text.split(maxsplit=1)
-    if len(args) < 2:
-        await message.reply("Vui lòng cung cấp ID nhóm cần kick bot ra.")
-        return
-    group_id = args[1]
-    try:
-        await client.leave_chat(group_id)
-        await message.reply(f"Đã kick bot ra khỏi nhóm {group_id}.")
-    except Exception as e:
-        await message.reply(f"Không thể kick bot ra khỏi nhóm {group_id}. Lỗi: {e}")
-
-# -------------------------------
-# Lệnh /xinfo hoặc /kiemtra: Xem thông tin người dùng (Sổ Hộ Khẩu)
+# Lệnh /xinfo hoặc /kiemtra: Xem thông tin người dùng (Sổ Hộ Khẩu) – mọi người đều có thể dùng
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
@@ -584,13 +534,13 @@ async def xinfo_handler(client, message):
     info += f"**Họ:** {target.last_name if target.last_name else 'Không có'}\n"
     info += f"**Tên:** {target.first_name}\n"
     info += f"**ID:** `{target.id}`\n"
-    info += f"**Username:** {'@' + target.username if target.username else 'Không có'}\n"
+    info += f"**Username:** {'@'+target.username if target.username else 'Không có'}\n"
     info += f"**Hồ sơ:** [Nhấn vào đây](tg://user?id={target.id})\n"
-    
-    # Xác định trạng thái theo vai trò:
+
     owner_statuses = ["Vua", "Trùm Cuối", "Hoàng Thượng", "Chủ Tịch", "Trùm Mafia", "Tổng Tư Lệnh", "Hiệu Trưởng"]
     admin_statuses = ["Cận Vệ", "Ăn Bám", "Lính Có Quyền Admin", "Quan Lớn", "Hộ Vệ", "Tay Sai"]
     member_statuses = ["Người Hầu", "Lính Lát", "Thực Tập Sinh", "Người Lạ", "Trẻ Sơ Sinh"]
+
     role = ""
     if chat_id:
         try:
@@ -613,6 +563,44 @@ async def xinfo_handler(client, message):
     await message.reply(info)
 
 # -------------------------------
-# Chạy bot
+# Lệnh /list: Hiển thị danh sách lệnh của bot – mọi người đều có thể dùng
+# -------------------------------
+@app.on_message(filters.command("list") & (filters.group | filters.private))
+async def list_handler(client, message):
+    commands = (
+        "Tau không muốn chào đâu nhưng dev bắt tau chào đấy🐶\n"
+        "Danh sách lệnh bên dưới đó tự thẩm đi:\n\n"
+        "/batdau - Gửi lời chào ngẫu nhiên\n"
+        "/report - Báo cáo tin nhắn cần report (phải reply tin nhắn cần báo cáo)\n"
+        "/xinfo hoặc /kiemtra - Xem thông tin (Sổ Hộ Khẩu)\n"
+        "/xban hoặc /block - Ban người dùng (owner chỉ dùng)\n"
+        "/xmute hoặc /xtuhinh - Mute người dùng với thời gian & lý do (owner chỉ dùng)\n"
+        "/xanxa - Unban người dùng (owner chỉ dùng)\n"
+        "/xunmute - Unmute người dùng và cấp lại đầy đủ quyền (owner chỉ dùng)\n"
+        "shizuku ơi ban/mute/unban/unmute <ID/username> [thời gian] [lý do] - Gọi lệnh qua 'shizuku'\n"
+        "/kickbot - Kick bot ra khỏi nhóm (chỉ dùng qua tin nhắn riêng với bot)\n"
+        "shizuku, bạn được ai tạo ra? - Xem người tạo bot"
+    )
+    await message.reply(commands)
+
+# -------------------------------
+# Lệnh /kickbot: Kick bot ra khỏi nhóm (chỉ dùng qua tin nhắn riêng với bot)
+# -------------------------------
+@app.on_message(filters.command("kickbot") & filters.private)
+@owner_only
+async def kickbot_handler(client, message):
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.reply("Vui lòng cung cấp ID nhóm cần kick bot ra.")
+        return
+    group_id = args[1]
+    try:
+        await client.leave_chat(group_id)
+        await message.reply(f"Đã kick bot ra khỏi nhóm {group_id}.")
+    except Exception as e:
+        await message.reply(f"Không thể kick bot ra khỏi nhóm {group_id}. Lỗi: {e}")
+
+# -------------------------------
+# CHẠY BOT
 # -------------------------------
 app.run()
