@@ -13,7 +13,7 @@ API_ID = 22286680                # Thay bằng API ID của bạn
 API_HASH = "a614a27fc39c3e54bf2e15da2a971e78"       # Thay bằng API Hash của bạn
 BOT_TOKEN = "7573169920:AAFLHoWTkCQJLTyCqn9fpwMk_3iXm2FHiAc"     # Thay bằng Bot Token của bạn
 
-# Danh sách các owner (các owner này được phép dùng lệnh quản trị, trừ /kickbot chỉ dành cho ID 5867402532)
+# Danh sách các owner (các owner này được phép dùng lệnh quản trị)
 OWNER_IDS = [5867402532, 6370114941, 6922955912]
 
 # -------------------------------
@@ -145,7 +145,7 @@ welcome_messages = [
 app = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 # -------------------------------
-# Decorator: chỉ cho phép các owner sử dụng lệnh quản trị (áp dụng cho các lệnh nhạy cảm)
+# Decorator: dành cho các lệnh quản trị (owner-only)
 # -------------------------------
 def owner_only(func):
     async def wrapper(client, message):
@@ -156,7 +156,7 @@ def owner_only(func):
     return wrapper
 
 # -------------------------------
-# SỰ KIỆN: Khi có thành viên mới gia nhập nhóm, lưu thông tin và gửi lời chào.
+# SỰ KIỆN: Khi có thành viên mới gia nhập nhóm, lưu thông tin vào DB và gửi lời chào.
 # -------------------------------
 @app.on_message(filters.new_chat_members)
 async def new_member_handler(client, message):
@@ -342,7 +342,7 @@ async def xmute_user(client, message):
         await message.reply(random.choice(admin_protection_messages))
         return
     duration_seconds = convert_time_to_seconds(maybe_time) if maybe_time else None
-    # Tắt hoàn toàn quyền gửi
+    # Tắt hoàn toàn quyền gửi tin nhắn và media
     mute_permissions = ChatPermissions(
         can_send_messages=False,
         can_send_media_messages=False,
@@ -509,6 +509,7 @@ async def shizuku_handler(client, message):
 
 # -------------------------------
 # Lệnh /xinfo hoặc /kiemtra: Xem thông tin người dùng (Sổ Hộ Khẩu) – mọi người đều có thể dùng
+# (Đồng thời, kiểm tra trạng thái thực tế của người dùng tại nhóm)
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
@@ -537,30 +538,17 @@ async def xinfo_handler(client, message):
     info += f"**ID:** `{target.id}`\n"
     info += f"**Username:** {'@'+target.username if target.username else 'Không có'}\n"
     info += f"**Hồ sơ:** [Nhấn vào đây](tg://user?id={target.id})\n"
-
-    owner_statuses = ["Vua", "Trùm Cuối", "Hoàng Thượng", "Chủ Tịch", "Trùm Mafia", "Tổng Tư Lệnh", "Hiệu Trưởng"]
-    admin_statuses = ["Cận Vệ", "Ăn Bám", "Lính Có Quyền Admin", "Quan Lớn", "Hộ Vệ", "Tay Sai"]
-    member_statuses = ["Người Hầu", "Lính Lát", "Thực Tập Sinh", "Người Lạ", "Trẻ Sơ Sinh"]
-
-    role = ""
     if chat_id:
         try:
             member = await client.get_chat_member(chat_id, target.id)
-            if target.id in OWNER_IDS:
-                role = random.choice(owner_statuses)
-            elif member.status in ["administrator", "creator"]:
-                role = random.choice(admin_statuses)
-            else:
-                role = random.choice(member_statuses)
+            actual_status = member.status  # trạng thái thực tế tại nhóm
         except Exception:
-            role = random.choice(member_statuses)
+            actual_status = "Không xác định"
+        info += f"**Trạng thái trong nhóm:** {actual_status}\n"
     else:
-        if target.id in OWNER_IDS:
-            role = random.choice(owner_statuses)
-        else:
-            role = random.choice(member_statuses)
+        info += "**Trạng thái trong nhóm:** Không có thông tin nhóm\n"
     icons = ["🔥", "💥", "✨", "🎉", "😎", "🚀", "🌟", "🥳", "💎", "🔔"]
-    info += f"**Trạng thái:** {role} {random.choice(icons)}"
+    info += f"**Icon ngẫu nhiên:** {random.choice(icons)}"
     await message.reply(info)
 
 # -------------------------------
@@ -573,13 +561,13 @@ async def list_handler(client, message):
         "Danh sách lệnh bên dưới đó tự thẩm đi:\n\n"
         "/batdau - Gửi lời chào ngẫu nhiên\n"
         "/report - Báo cáo tin nhắn cần report (phải reply tin nhắn cần báo cáo)\n"
-        "/xinfo hoặc /kiemtra - Xem thông tin (Sổ Hộ Khẩu)\n"
+        "/xinfo hoặc /kiemtra - Xem thông tin (Sổ Hộ Khẩu) và trạng thái tại nhóm\n"
         "/xban hoặc /block - Ban người dùng (owner chỉ dùng)\n"
         "/xmute hoặc /xtuhinh - Mute người dùng với thời gian & lý do (owner chỉ dùng)\n"
         "/xanxa - Unban người dùng (owner chỉ dùng)\n"
         "/xunmute - Unmute người dùng và cấp lại đầy đủ quyền (owner chỉ dùng)\n"
         "shizuku ơi ban/mute/unban/unmute <ID/username> [thời gian] [lý do] - Gọi lệnh qua 'shizuku'\n"
-        "/kickbot - Kick bot ra khỏi nhóm (chỉ dùng qua tin nhắn riêng với bot, chỉ ID 5867402532 được dùng)\n"
+        "/kickbot - Kick bot ra khỏi nhóm (chỉ dùng qua tin nhắn riêng, chỉ ID 5867402532 được dùng)\n"
         "shizuku, bạn được ai tạo ra? - Xem người tạo bot"
     )
     await message.reply(commands)
@@ -589,7 +577,6 @@ async def list_handler(client, message):
 # -------------------------------
 @app.on_message(filters.command("kickbot") & filters.private)
 async def kickbot_handler(client, message):
-    # Chỉ cho phép người dùng có ID 5867402532 sử dụng lệnh này
     if message.from_user.id != 5867402532:
         await message.reply("Bạn không có quyền sử dụng lệnh này.")
         return
