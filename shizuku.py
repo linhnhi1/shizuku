@@ -453,7 +453,7 @@ async def xunmute_user(client, message):
     )
     try:
         await client.restrict_chat_member(chat_id, user.id, full_permissions)
-        await message.reply(f"🎤 **{user.first_name} đã được XUNMUTE và được cấp lại đầy đủ quyền!**\n" +
+        await message.reply(f"🎤 **{user.first_name} đã được XUNmute và được cấp lại đầy đủ quyền!**\n" +
                             random.choice(funny_messages).format(name=user.first_name))
     except Exception as e:
         await message.reply(f"❌ Không thể mở mute! Lỗi: {e}")
@@ -509,7 +509,7 @@ async def shizuku_handler(client, message):
 
 # -------------------------------
 # Lệnh /xinfo hoặc /kiemtra: Xem thông tin người dùng (Sổ Hộ Khẩu) – mọi người đều có thể dùng
-# (Đồng thời, kiểm tra trạng thái thực tế của người dùng tại nhóm)
+# (Đồng thời, hiển thị trạng thái thực tế của người dùng tại nhóm)
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
@@ -541,14 +541,35 @@ async def xinfo_handler(client, message):
     if chat_id:
         try:
             member = await client.get_chat_member(chat_id, target.id)
-            actual_status = member.status  # trạng thái thực tế tại nhóm
+            actual_status = member.status  # trạng thái thực tế tại nhóm (ví dụ: member, administrator, creator, restricted)
         except Exception:
             actual_status = "Không xác định"
         info += f"**Trạng thái trong nhóm:** {actual_status}\n"
     else:
         info += "**Trạng thái trong nhóm:** Không có thông tin nhóm\n"
     icons = ["🔥", "💥", "✨", "🎉", "😎", "🚀", "🌟", "🥳", "💎", "🔔"]
-    info += f"**Icon ngẫu nhiên:** {random.choice(icons)}"
+    # Cập nhật trạng thái ngẫu nhiên theo vai trò:
+    owner_statuses = ["Trùm cuối", "Trùm Mafia", "Chủ Tịch", "Hoàng Thượng", "Boss", "Tổng Tư Lệnh", "Vua chúa", "Long Vương", "Hiệu Trưởng"]
+    admin_statuses = ["Cận vệ", "Hoàng Hậu", "Quản Gia", "AD lỏ", "Hậu vệ", "Tiền đạo"]
+    member_statuses = ["Lính quèn", "Tay sai", "Thường dân", "Ăn bám", "Chân chạy vặt", "Thực tập sinh", "Trẻ sơ sinh"]
+    role = ""
+    if chat_id:
+        try:
+            member = await client.get_chat_member(chat_id, target.id)
+            if target.id in OWNER_IDS:
+                role = random.choice(owner_statuses)
+            elif member.status in ["administrator", "creator"]:
+                role = random.choice(admin_statuses)
+            else:
+                role = random.choice(member_statuses)
+        except Exception:
+            role = random.choice(member_statuses)
+    else:
+        if target.id in OWNER_IDS:
+            role = random.choice(owner_statuses)
+        else:
+            role = random.choice(member_statuses)
+    info += f"**Trạng thái ngẫu nhiên:** {role} {random.choice(icons)}"
     await message.reply(info)
 
 # -------------------------------
@@ -573,7 +594,7 @@ async def list_handler(client, message):
     await message.reply(commands)
 
 # -------------------------------
-# Lệnh /kickbot: Kick bot ra khỏi nhóm (chỉ dùng qua tin nhắn riêng với bot, chỉ ID 5867402532 được dùng)
+# Lệnh /kickbot: Kick bot ra khỏi nhóm (chỉ dùng qua tin nhắn riêng, chỉ ID 5867402532 được dùng)
 # -------------------------------
 @app.on_message(filters.command("kickbot") & filters.private)
 async def kickbot_handler(client, message):
