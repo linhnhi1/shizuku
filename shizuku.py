@@ -9,12 +9,12 @@ from pyrogram.types import ChatPermissions
 # -------------------------------
 # THÔNG TIN API – thay đổi theo thông tin của bạn
 # -------------------------------
-API_ID = 1234567                # Thay bằng API ID của bạn
-API_HASH = "your_api_hash"       # Thay bằng API Hash của bạn
-BOT_TOKEN = "your_bot_token"     # Thay bằng Bot Token của bạn
+API_ID = 22286680                # Thay bằng API ID của bạn
+API_HASH = "a614a27fc39c3e54bf2e15da2a971e78"       # Thay bằng API Hash của bạn
+BOT_TOKEN = "7573169920:AAFLHoWTkCQJLTyCqn9fpwMk_3iXm2FHiAc"     # Thay bằng Bot Token của bạn
 
 # Danh sách các owner (các owner này được phép dùng lệnh quản trị)
-OWNER_IDS = [5867402532]  # VD: [5867402532, 123456789, 987654321]
+OWNER_IDS = [5867402532, 6370114941]  # VD: [5867402532, 123456789, 987654321]
 
 # -------------------------------
 # KHỞI TẠO DATABASE SQLite
