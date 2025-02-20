@@ -14,7 +14,7 @@ API_HASH = "a614a27fc39c3e54bf2e15da2a971e78"       # Thay bằng API Hash của
 BOT_TOKEN = "7573169920:AAFLHoWTkCQJLTyCqn9fpwMk_3iXm2FHiAc"     # Thay bằng Bot Token của bạn
 
 # Danh sách các owner (các owner này được phép dùng lệnh quản trị)
-OWNER_IDS = [5867402532, 6370114941, 6922955912]
+OWNER_IDS = [5867402532, 6370114941, 6922955912, 1906855234, 5161512205]
 
 # -------------------------------
 # KHỞI TẠO DATABASE SQLite
