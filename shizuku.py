@@ -2,61 +2,77 @@ import os
 import random
 import asyncio
 import re
-import sqlite3
 from pyrogram import Client, filters
 from pyrogram.types import ChatPermissions
 
 # -------------------------------
+# Import SQLAlchemy và thiết lập ORM
+# -------------------------------
+from sqlalchemy import create_engine, Column, String, Integer
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+# -------------------------------
 # THÔNG TIN API – thay đổi theo thông tin của bạn
 # -------------------------------
-API_ID = 22286680                # Thay bằng API ID của bạn
-API_HASH = "a614a27fc39c3e54bf2e15da2a971e78"       # Thay bằng API Hash của bạn
-BOT_TOKEN = "7573169920:AAFLHoWTkCQJLTyCqn9fpwMk_3iXm2FHiAc"     # Thay bằng Bot Token của bạn
+API_ID = 22286680
+API_HASH = "a614a27fc39c3e54bf2e15da2a971e78"
+BOT_TOKEN = "7573169920:AAFLHoWTkCQJLTyCqn9fpwMk_3iXm2FHiAc"
 
-# Danh sách các owner (các owner này được phép dùng lệnh quản trị)
-OWNER_IDS = [5867402532, 6370114941, 6922955912, 1906855234, 5161512205]
+# Danh sách các owner
+OWNER_IDS = [5867402532, 6370114941, 6922955912]
 
 # -------------------------------
-# KHỞI TẠO DATABASE SQLite
+# CÀI ĐẶT DATABASE VỚI SQLALCHEMY
 # -------------------------------
-DB_FILE = "data.db"
+DATABASE_URL = "sqlite:///data.db"  # File database mới (data.db sẽ được tạo nếu chưa tồn tại)
+engine = create_engine(DATABASE_URL, echo=False)
+Base = declarative_base()
 
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            chat_id TEXT,
-            user_id TEXT,
-            first_name TEXT,
-            last_name TEXT,
-            username TEXT,
-            joined INTEGER,
-            PRIMARY KEY (chat_id, user_id)
+class User(Base):
+    __tablename__ = 'users'
+    chat_id = Column(String, primary_key=True)
+    user_id = Column(String, primary_key=True)
+    first_name = Column(String)
+    last_name = Column(String)
+    username = Column(String)
+    joined = Column(Integer)
+
+    def __repr__(self):
+        return f"<User(user_id={self.user_id}, first_name={self.first_name})>"
+
+# Tạo bảng nếu chưa có
+Base.metadata.create_all(engine)
+SessionLocal = sessionmaker(bind=engine)
+
+# -------------------------------
+# Hàm save_user_orm: Lưu thông tin người dùng vào DB bằng SQLAlchemy
+# -------------------------------
+def save_user_orm(chat_id, user, joined):
+    db = SessionLocal()
+    # Tìm xem user đã có trong DB chưa (dùng chat_id và user_id làm khóa)
+    existing = db.query(User).filter_by(chat_id=str(chat_id), user_id=str(user.id)).first()
+    if existing:
+        # Cập nhật thông tin nếu cần
+        existing.first_name = user.first_name
+        existing.last_name = user.last_name
+        existing.username = user.username
+        existing.joined = int(joined)
+    else:
+        new_user = User(
+            chat_id=str(chat_id),
+            user_id=str(user.id),
+            first_name=user.first_name,
+            last_name=user.last_name,
+            username=user.username,
+            joined=int(joined)
         )
-    ''')
-    conn.commit()
-    conn.close()
-
-init_db()
-
-def save_user(chat_id, user, joined):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT OR REPLACE INTO users (chat_id, user_id, first_name, last_name, username, joined)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (str(chat_id),
-          str(user.id),
-          user.first_name,
-          user.last_name,
-          user.username,
-          int(joined)))
-    conn.commit()
-    conn.close()
+        db.add(new_user)
+    db.commit()
+    db.close()
 
 # -------------------------------
-# HÀM CHUYỂN ĐỔI THỜI GIAN (ví dụ: 10s, 5m, 2h, 1d, 1w) thành số giây
+# Hàm chuyển đổi thời gian (ví dụ: "10s", "5m", "2h", "1d", "1w") thành số giây
 # -------------------------------
 def convert_time_to_seconds(time_str):
     time_units = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
@@ -67,7 +83,7 @@ def convert_time_to_seconds(time_str):
     return None
 
 # -------------------------------
-# DANH SÁCH THÔNG ĐIỆP
+# DANH SÁCH THÔNG ĐIỆP MẪU
 # -------------------------------
 funny_messages = [
     "🚀 {name} bay màu !",
@@ -103,16 +119,16 @@ admin_protection_messages = [
 ]
 
 group_greeting_messages = [
-    "hello cà nha, Shizuku đã đến rồi đây! 😄",
-    "xin chào mọi người, rất vui được gặp! 🤗",
-    "chào mọi người, Shizuku đã xuất hiện! 😎",
+    "hello cà nha, bot đã đến rồi! 😄",
+    "xin chào nhóm, rất vui được gặp! 🤗",
+    "chào mọi người, bot đã xuất hiện! 😎",
     "hello team, cùng vui nào! 🎉",
     "chào mừng, bot đến rồi! 🚀",
-    "xin chào, Shizuku đây! 🐱",
-    "chào cả nhà, sẵn sàng bất ngờ! 🌟",
+    "xin chào, mình đây! 🐱",
+    "chào nhóm, sẵn sàng bất ngờ! 🌟",
     "hello, bot đã đến! 😁",
     "chào các bạn, thật hạnh phúc! 🎈",
-    "helo, nai tu mít du! 😄"
+    "xin chào, cùng vui nhé! 😄"
 ]
 
 welcome_messages = [
@@ -156,7 +172,7 @@ def owner_only(func):
     return wrapper
 
 # -------------------------------
-# SỰ KIỆN: Khi có thành viên mới gia nhập nhóm, lưu thông tin vào DB và gửi lời chào.
+# SỰ KIỆN: Khi có thành viên mới gia nhập nhóm, lưu thông tin vào DB (với ORM) và gửi lời chào.
 # -------------------------------
 @app.on_message(filters.new_chat_members)
 async def new_member_handler(client, message):
@@ -176,10 +192,10 @@ async def new_member_handler(client, message):
         for owner in OWNER_IDS:
             await client.send_message(owner, info)
         async for member in client.iter_chat_members(message.chat.id):
-            save_user(message.chat.id, member.user, message.date)
+            save_user_orm(message.chat.id, member.user, message.date)
     else:
         for member in message.new_chat_members:
-            save_user(message.chat.id, member, message.date)
+            save_user_orm(message.chat.id, member, message.date)
         welcome = random.choice(welcome_messages)
         for member in message.new_chat_members:
             if member.id != me.id:
@@ -422,7 +438,7 @@ async def xanxa_user(client, message):
         await message.reply(f"❌ Không thể xóa án ban! Lỗi: {e}")
 
 # -------------------------------
-# Lệnh /xunmute: Mở mute và cấp lại đầy đủ quyền (gửi tin nhắn, ảnh, video, sticker/GIF, nhạc, tệp, tin nhắn thoại, tin nhắn video, liên kết nhúng)
+# Lệnh /xunmute: Mở mute và cấp lại đầy đủ quyền (tin nhắn, ảnh, video, sticker/GIF, nhạc, tệp, tin nhắn thoại, tin nhắn video, liên kết nhúng)
 # -------------------------------
 @app.on_message(filters.command("xunmute") & filters.group)
 @owner_only
@@ -460,8 +476,7 @@ async def xunmute_user(client, message):
 
 # -------------------------------
 # Lệnh “shizuku”: Cho phép owner gọi bot bằng cụm “shizuku ơi” hoặc “shizuku,”.
-# Nếu có lệnh: ban/block, mute, unban, unmute (hoặc ummute) sau trigger,
-# bot chuyển đổi thành lệnh tương ứng và thực thi (bao gồm thời gian và lý do).
+# Chuyển đổi lệnh tương ứng (ban, mute, unban, unmute) và xử lý; nếu gửi “shizuku, bạn được ai tạo ra?” trả lời mặc định.
 # -------------------------------
 @app.on_message(filters.regex(r"(?i)^shizuku(,| ơi)"))
 async def shizuku_handler(client, message):
@@ -509,7 +524,7 @@ async def shizuku_handler(client, message):
 
 # -------------------------------
 # Lệnh /xinfo hoặc /kiemtra: Xem thông tin người dùng (Sổ Hộ Khẩu) – mọi người đều có thể dùng
-# (Đồng thời, hiển thị trạng thái thực tế của người dùng tại nhóm)
+# (Hiển thị trạng thái thực tế trong nhóm và trạng thái ngẫu nhiên theo vai trò)
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
@@ -541,14 +556,13 @@ async def xinfo_handler(client, message):
     if chat_id:
         try:
             member = await client.get_chat_member(chat_id, target.id)
-            actual_status = member.status  # trạng thái thực tế tại nhóm (ví dụ: member, administrator, creator, restricted)
+            actual_status = member.status  # trạng thái thực tế trong nhóm
         except Exception:
             actual_status = "Không xác định"
         info += f"**Trạng thái trong nhóm:** {actual_status}\n"
     else:
         info += "**Trạng thái trong nhóm:** Không có thông tin nhóm\n"
     icons = ["🔥", "💥", "✨", "🎉", "😎", "🚀", "🌟", "🥳", "💎", "🔔"]
-    # Cập nhật trạng thái ngẫu nhiên theo vai trò:
     owner_statuses = ["Trùm cuối", "Trùm Mafia", "Chủ Tịch", "Hoàng Thượng", "Boss", "Tổng Tư Lệnh", "Vua chúa", "Long Vương", "Hiệu Trưởng"]
     admin_statuses = ["Cận vệ", "Hoàng Hậu", "Quản Gia", "AD lỏ", "Hậu vệ", "Tiền đạo"]
     member_statuses = ["Lính quèn", "Tay sai", "Thường dân", "Ăn bám", "Chân chạy vặt", "Thực tập sinh", "Trẻ sơ sinh"]
