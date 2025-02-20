@@ -13,8 +13,8 @@ API_ID = 22286680                # Thay bằng API ID của bạn
 API_HASH = "a614a27fc39c3e54bf2e15da2a971e78"       # Thay bằng API Hash của bạn
 BOT_TOKEN = "7573169920:AAFLHoWTkCQJLTyCqn9fpwMk_3iXm2FHiAc"     # Thay bằng Bot Token của bạn
 
-# Danh sách các owner (các owner này được phép dùng lệnh quản trị)
-OWNER_IDS = [5867402532, 6370114941, 6922955912]  # VD: [5867402532, 123456789, 987654321]
+# Danh sách các owner (các owner này được phép dùng lệnh quản trị, trừ /kickbot chỉ dành cho ID 5867402532)
+OWNER_IDS = [5867402532, 6370114941, 6922955912]
 
 # -------------------------------
 # KHỞI TẠO DATABASE SQLite
@@ -70,7 +70,7 @@ def convert_time_to_seconds(time_str):
 # DANH SÁCH THÔNG ĐIỆP
 # -------------------------------
 funny_messages = [
-    "🚀 {name} bay màu luôn luôn!",
+    "🚀 {name} bay màu !",
     "😆 {name} vừa du hành qua không gian ảo!",
     "🎉 {name} đã được phóng thích!",
     "😎 {name} giờ tự do để tán gẫu!",
@@ -189,9 +189,9 @@ async def new_member_handler(client, message):
                     pass
 
 # -------------------------------
-# Lệnh /batdau: Gửi một câu chào ngẫu nhiên
+# Lệnh /batdau: Gửi một câu chào ngẫu nhiên (mọi người đều có thể dùng)
 # -------------------------------
-@app.on_message(filters.command("batdau") & filters.group)
+@app.on_message(filters.command("batdau") & (filters.group | filters.private))
 async def batdau_command(client, message):
     await message.reply(random.choice(welcome_messages))
 
@@ -257,6 +257,7 @@ async def xban_user(client, message):
             return
         maybe_time = args[2] if len(args) >= 3 and args[2][-1] in "smhdw" else None
         reason = args[3] if (maybe_time and len(args) >= 4) else (args[2] if len(args) >= 3 and not maybe_time else "Không có lý do")
+    
     chat_id = message.chat.id
     try:
         member = await client.get_chat_member(chat_id, user.id)
@@ -301,7 +302,7 @@ async def xban_user(client, message):
             await message.reply(f"❌ Không thể mở BLOCK! Lỗi: {e}")
 
 # -------------------------------
-# Lệnh /xmute (alias /xtuhinh): MUTE theo ID/username hoặc reply (xoá tin nhắn nếu có).
+# Lệnh /xmute (alias /xtuhinh): MUTE theo ID/username hoặc reply (xoá tin nhắn nếu có)
 # Khi mute, bot tắt hoàn toàn quyền gửi tin nhắn và media.
 # -------------------------------
 @app.on_message(filters.command(["xmute", "xtuhinh"]) & filters.group)
@@ -330,6 +331,7 @@ async def xmute_user(client, message):
             return
         maybe_time = args[2] if len(args) >= 3 and args[2][-1] in "smhdw" else None
         reason = args[3] if (maybe_time and len(args) >= 4) else (args[2] if len(args) >= 3 and not maybe_time else "Không có lý do")
+    
     chat_id = message.chat.id
     try:
         member = await client.get_chat_member(chat_id, user.id)
@@ -500,7 +502,6 @@ async def shizuku_handler(client, message):
         new_text = "/xunmute " + " ".join(parts[1:])
         message.text = new_text
         await xunmute_user(client, message)
-    # Nếu gọi lệnh creator: "shizuku, bạn được ai tạo ra" hoặc tương tự
     elif "được ai tạo ra" in command_text.lower():
         await message.reply("Tôi được @OverFlowVIP và (Chat GPT plus) tạo ra🐶")
     else:
@@ -578,17 +579,20 @@ async def list_handler(client, message):
         "/xanxa - Unban người dùng (owner chỉ dùng)\n"
         "/xunmute - Unmute người dùng và cấp lại đầy đủ quyền (owner chỉ dùng)\n"
         "shizuku ơi ban/mute/unban/unmute <ID/username> [thời gian] [lý do] - Gọi lệnh qua 'shizuku'\n"
-        "/kickbot - Kick bot ra khỏi nhóm (chỉ dùng qua tin nhắn riêng với bot)\n"
+        "/kickbot - Kick bot ra khỏi nhóm (chỉ dùng qua tin nhắn riêng với bot, chỉ ID 5867402532 được dùng)\n"
         "shizuku, bạn được ai tạo ra? - Xem người tạo bot"
     )
     await message.reply(commands)
 
 # -------------------------------
-# Lệnh /kickbot: Kick bot ra khỏi nhóm (chỉ dùng qua tin nhắn riêng với bot)
+# Lệnh /kickbot: Kick bot ra khỏi nhóm (chỉ dùng qua tin nhắn riêng với bot, chỉ ID 5867402532 được dùng)
 # -------------------------------
 @app.on_message(filters.command("kickbot") & filters.private)
-@owner_only
 async def kickbot_handler(client, message):
+    # Chỉ cho phép người dùng có ID 5867402532 sử dụng lệnh này
+    if message.from_user.id != 5867402532:
+        await message.reply("Bạn không có quyền sử dụng lệnh này.")
+        return
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
         await message.reply("Vui lòng cung cấp ID nhóm cần kick bot ra.")
