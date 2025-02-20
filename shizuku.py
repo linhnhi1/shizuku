@@ -103,16 +103,16 @@ admin_protection_messages = [
 ]
 
 group_greeting_messages = [
-    "hello cà nha, bot đã đến rồi! 😄",
-    "xin chào nhóm, rất vui được gặp! 🤗",
-    "chào mọi người, bot đã xuất hiện! 😎",
+    "hello cà nha, Shizuku đã đến rồi đây! 😄",
+    "xin chào mọi người, rất vui được gặp! 🤗",
+    "chào mọi người, Shizuku đã xuất hiện! 😎",
     "hello team, cùng vui nào! 🎉",
     "chào mừng, bot đến rồi! 🚀",
-    "xin chào, mình đây! 🐱",
-    "chào nhóm, sẵn sàng bất ngờ! 🌟",
+    "xin chào, Shizuku đây! 🐱",
+    "chào cả nhà, sẵn sàng bất ngờ! 🌟",
     "hello, bot đã đến! 😁",
     "chào các bạn, thật hạnh phúc! 🎈",
-    "xin chào, cùng vui nhé! 😄"
+    "helo, nai tu mít du! 😄"
 ]
 
 welcome_messages = [
