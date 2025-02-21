@@ -83,6 +83,14 @@ def convert_time_to_seconds(time_str):
     return None
 
 # -------------------------------
+# Hàm escape_markdown: Escape các ký tự đặc biệt cho MarkdownV2
+# -------------------------------
+def escape_markdown(text):
+    if text is None:
+        return ""
+    return re.sub(r'([_*[\]()~`>#+\-=|{}.!])', r'\\\1', str(text))
+
+# -------------------------------
 # DANH SÁCH THÔNG ĐIỆP & ROLE
 # -------------------------------
 admin_protection_messages = [
@@ -196,7 +204,7 @@ async def list_handler(client, message):
         "Danh sách lệnh bên dưới:\n\n"
         "/batdau - Chào mừng người dùng\n"
         "/report - Báo cáo tin nhắn cần report (reply tin cần báo cáo)\n"
-        "/xinfo hoặc /kiemtra - Xem THẺ THÔNG HÀNH của người dùng\n"
+        "/xinfo hoặc /kiemtra - Hiển thị THẺ THÔNG HÀNH của người dùng\n"
         "/dongbo - Đồng bộ thành viên (chỉ ID 5867402532 dùng)\n"
         "/xban hoặc /block - Ban người dùng (owner dùng)\n"
         "/xmute hoặc /xtuhinh - Mute người dùng (owner dùng)\n"
@@ -268,7 +276,6 @@ async def xinfo_handler(client, message):
                 query = args[1].strip()
                 if query.startswith('@'):
                     query = query[1:]
-                # Nếu query toàn chữ số, chuyển thành int
                 if query.isdigit():
                     target = await client.get_users(int(query))
                 else:
@@ -282,7 +289,7 @@ async def xinfo_handler(client, message):
         username = target.username if target.username else "Không có"
         user_link = f"tg://user?id={user_id}"
 
-        # Xác định trạng thái người dùng dựa vào thông tin trong nhóm (nếu có)
+        # Xác định trạng thái của người dùng dựa vào thông tin trong nhóm (nếu có)
         if message.chat and message.chat.type != "private":
             try:
                 member = await client.get_chat_member(message.chat.id, user_id)
@@ -305,7 +312,7 @@ async def xinfo_handler(client, message):
             f"📍 **Địa Chỉ:** [{first_name}]({user_link})\n"
             f"✨ **Trạng thái:** {status}\n"
         )
-        await message.reply(note, parse_mode="markdown")
+        await message.reply(note, parse_mode="markdownv2")
     except Exception as ex:
         await message.reply(f"❌ Đã xảy ra lỗi: {ex}")
 
