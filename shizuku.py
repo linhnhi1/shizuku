@@ -80,7 +80,7 @@ def convert_time_to_seconds(time_str):
     return None
 
 # -------------------------------
-# DANH SÁCH THÔNG ĐIỆP & ROLE
+# DANH SÁCH THÔNG ĐIỆP & CÁC ROLE
 # -------------------------------
 admin_protection_messages = [
     "Sếp ơi, nó là admin đó bình tĩnh🐶.",
@@ -184,7 +184,7 @@ async def list_handler(client, message):
         "/xmute hoặc /xtuhinh - Mute người dùng (owner dùng)\n"
         "/xanxa - Unban người dùng (owner dùng)\n"
         "/xunmute - Unmute người dùng (owner dùng)\n"
-        "/ytb - Tìm kiếm bài hát trên YouTube, hiển thị danh sách lựa chọn dưới dạng button\n"
+        "/ytb - Tìm kiếm bài hát trên YouTube, hiển thị danh sách lựa chọn\n"
         "shizuku ơi ... - Gọi lệnh qua 'shizuku'\n"
         "/list - Hiển thị danh sách lệnh"
     )
@@ -558,7 +558,7 @@ async def shizuku_handler(client, message):
         await message.reply("Lệnh không hợp lệ. Bạn có thể dùng: ban/block, mute, unban, unmute, hoặc 'shizuku, bạn được ai tạo ra'.")
 
 # -------------------------------
-# Lệnh /ytb: Tìm kiếm bài hát trên YouTube, liệt kê danh sách dưới dạng button để chọn
+# Lệnh /ytb: Tìm kiếm bài hát trên YouTube, liệt kê danh sách chi tiết dưới dạng button
 # Mọi người đều có thể sử dụng.
 # -------------------------------
 @app.on_message(filters.command("ytb") & filters.group)
@@ -567,16 +567,20 @@ async def ytb_handler(client, message):
         await message.reply("Vui lòng nhập tên bài hát sau lệnh /ytb.")
         return
     query = message.text.split(maxsplit=1)[1]
-    await message.reply("Đang tìm kiếm bài hát trên YouTube...")
-    try:
-        result = subprocess.check_output(
-            ["yt-dlp", "-j", f"ytsearch5:{query}"],
-            universal_newlines=True
-        )
-    except Exception as e:
-        await message.reply(f"Không thể tìm kiếm bài hát. Lỗi: {e}")
+    temp_msg = await message.reply("Đang tìm kiếm bài hát trên YouTube...")
+    
+    # Sử dụng yt-dlp để tìm kiếm 5 kết quả dưới dạng JSON (sử dụng subprocess bất đồng bộ)
+    proc = await asyncio.create_subprocess_exec(
+        "yt-dlp", "-j", f"ytsearch5:{query}",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        await temp_msg.edit_text(f"Không thể tìm kiếm bài hát. Lỗi: {stderr.decode().strip()}")
         return
-
+    result = stdout.decode()
+    
     results = []
     for line in result.strip().split("\n"):
         try:
@@ -586,7 +590,7 @@ async def ytb_handler(client, message):
             continue
 
     if not results:
-        await message.reply("Không tìm thấy bài hát nào.")
+        await temp_msg.edit_text("Không tìm thấy bài hát nào.")
         return
 
     buttons = []
@@ -597,13 +601,12 @@ async def ytb_handler(client, message):
         minutes = duration // 60
         seconds = duration % 60
         btn_text = f"{title} ({minutes}:{seconds:02d})"
-        # Callback data format: ytb|video_id|sanitized_title
         sanitized_title = "".join(c for c in title if c.isalnum() or c in (" ", "_")).rstrip().replace(" ", "_")
+        # Callback data format: ytb|video_id|sanitized_title
         callback_data = f"ytb|{video_id}|{sanitized_title}"
         buttons.append([InlineKeyboardButton(btn_text, callback_data=callback_data)])
-
     reply_markup = InlineKeyboardMarkup(buttons)
-    await message.reply("Chọn bài hát:", reply_markup=reply_markup)
+    await temp_msg.edit_text("Chọn bài hát:", reply_markup=reply_markup)
 
 # -------------------------------
 # Callback Query Handler cho lệnh /ytb
