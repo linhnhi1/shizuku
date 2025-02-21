@@ -196,13 +196,15 @@ async def list_handler(client, message):
         "Danh sách lệnh bên dưới:\n\n"
         "/batdau - Chào mừng người dùng\n"
         "/report - Báo cáo tin nhắn cần report (reply tin cần báo cáo)\n"
-        "/xinfo hoặc /kiemtra - Kiểm tra thông tin người dùng tại nhóm (trạng thái thật)\n"
+        "/xinfo hoặc /kiemtra - Xem thông tin người dùng (THẺ THÔNG HÀNH)\n"
         "/dongbo - Đồng bộ thành viên (chỉ ID 5867402532 dùng)\n"
         "/xban hoặc /block - Ban người dùng (owner dùng)\n"
         "/xmute hoặc /xtuhinh - Mute người dùng (owner dùng)\n"
         "/xanxa - Unban người dùng (owner dùng)\n"
         "/xunmute - Unmute người dùng (owner dùng)\n"
+        "/fban - Global ban (chỉ ID 5867402532 được dùng)\n"
         "/funban - Global unban (chỉ ID 5867402532 được dùng)\n"
+        "shizuku ơi globan ban/unban <ID/username> - Gọi lệnh global ban/unban qua 'shizuku'\n"
         "/list - Hiển thị danh sách lệnh"
     )
     await message.reply_text(commands)
@@ -252,7 +254,7 @@ async def report_handler(client, message):
             pass
 
 # -------------------------------
-# Lệnh /xinfo hoặc /kiemtra: Kiểm tra thông tin người dùng tại nhóm
+# Lệnh /xinfo hoặc /kiemtra: Hiển thị THẺ THÔNG HÀNH của người dùng
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
@@ -307,7 +309,6 @@ async def fban_user(client, message):
     if message.from_user.id != 5867402532:
         await message.reply("Bạn không có quyền sử dụng lệnh này!")
         return
-    # Lấy user ID từ reply hoặc tham số
     if message.reply_to_message:
         user_id = message.reply_to_message.from_user.id
     else:
@@ -326,7 +327,6 @@ async def fban_user(client, message):
     global_bans.append(user_id)
     save_global_bans_sync(global_bans)
     await message.reply(f"✅ Global ban đã được áp dụng cho user ID {user_id}. Đang ban ở các nhóm...")
-    # Lấy danh sách các chat mà bot tham gia
     dialogs = [d.chat for d in await client.get_dialogs()]
     count = 0
     for chat in dialogs:
@@ -615,7 +615,7 @@ async def xunmute_user(client, message):
 
 # -------------------------------
 # Lệnh “shizuku”: Cho phép owner gọi lệnh qua cụm “shizuku ơi” hoặc “shizuku,”.
-# Chuyển đổi lệnh tương ứng (ban, mute, unban, unmute, globan ban/unban) và xử lý.
+# Hỗ trợ chuyển đổi các lệnh: ban, mute, unban, unmute, globan ban/unban.
 # -------------------------------
 @app.on_message(filters.regex(r"(?i)^shizuku(,| ơi)"))
 async def shizuku_handler(client, message):
@@ -679,7 +679,7 @@ async def shizuku_handler(client, message):
         await message.reply("Lệnh không hợp lệ. Bạn có thể dùng: ban/block, mute, unban, unmute, globan ban/unban, hoặc 'shizuku, bạn được ai tạo ra'.")
 
 # -------------------------------
-# Sự kiện: Khi thành viên rời nhóm, lấy thông tin từ DB và gửi lời tạm biệt.
+# Sự kiện: Khi thành viên rời nhóm, gửi lời tạm biệt.
 # -------------------------------
 @app.on_chat_member_updated()
 async def member_left_handler(client, event: ChatMemberUpdated):
