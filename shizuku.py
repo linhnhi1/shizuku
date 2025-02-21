@@ -83,14 +83,6 @@ def convert_time_to_seconds(time_str):
     return None
 
 # -------------------------------
-# Hàm escape_markdown: Escape các ký tự đặc biệt cho MarkdownV2
-# -------------------------------
-def escape_markdown(text):
-    if text is None:
-        return ""
-    return re.sub(r'([_*[\]()~`>#+\-=|{}.!])', r'\\\1', str(text))
-
-# -------------------------------
 # DANH SÁCH THÔNG ĐIỆP & ROLE
 # -------------------------------
 admin_protection_messages = [
@@ -262,12 +254,12 @@ async def report_handler(client, message):
             pass
 
 # -------------------------------
-# Lệnh /xinfo hoặc /kiemtra: Hiển thị THẺ THÔNG HÀNH của người dùng
+# Lệnh /xinfo hoặc /kiemtra: Hiển thị THẺ THÔNG HÀNH (dùng parse_mode="HTML")
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
     try:
-        # Xác định đối tượng: nếu reply, lấy người được reply; ngược lại, nếu có tham số, dùng tham số đó; nếu không, dùng người gửi
+        # Xác định đối tượng cần lấy thông tin:
         if message.reply_to_message:
             target = message.reply_to_message.from_user
         else:
@@ -289,7 +281,7 @@ async def xinfo_handler(client, message):
         username = target.username if target.username else "Không có"
         user_link = f"tg://user?id={user_id}"
 
-        # Xác định trạng thái của người dùng trong nhóm (nếu có)
+        # Xác định trạng thái của người dùng dựa vào thông tin trong nhóm (nếu có)
         if message.chat and message.chat.type != "private":
             try:
                 member = await client.get_chat_member(message.chat.id, user_id)
@@ -304,16 +296,16 @@ async def xinfo_handler(client, message):
         else:
             status = "Không có thông tin nhóm"
 
-        # Tạo note theo định dạng yêu cầu
+        # Tạo note dùng HTML
         note = (
-            "🎫 *THẺ THÔNG HÀNH* 🎫\n"
-            f"🔑 *Mã Định Danh:* `{user_id}`\n"
-            f"📝 *Họ Tên:* {first_name}\n"
-            f"🪪 *Bí Danh:* @{username}\n"
-            f"📍 *Địa Chỉ:* [{first_name}]({user_link})\n"
-            f"✨ *Trạng thái:* {status}\n"
+            "🎫 <b>THẺ THÔNG HÀNH</b> 🎫\n"
+            f"🔑 <b>Mã Định Danh:</b> {user_id}\n"
+            f"📝 <b>Họ Tên:</b> {first_name}\n"
+            f"🪪 <b>Bí Danh:</b> @{username}\n"
+            f"📍 <b>Địa Chỉ:</b> <a href=\"{user_link}\">{first_name}</a>\n"
+            f"✨ <b>Trạng thái:</b> {status}\n"
         )
-        await message.reply(note, parse_mode="markdown")
+        await message.reply(note, parse_mode="HTML", disable_web_page_preview=True)
     except Exception as ex:
         await message.reply(f"❌ Đã xảy ra lỗi: {ex}")
 
