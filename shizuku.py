@@ -2,6 +2,7 @@ import os
 import random
 import asyncio
 import re
+import subprocess
 from datetime import datetime
 
 from pyrogram import Client, filters
@@ -21,13 +22,13 @@ API_ID = 22286680
 API_HASH = "a614a27fc39c3e54bf2e15da2a971e78"
 BOT_TOKEN = "7573169920:AAFLHoWTkCQJLTyCqn9fpwMk_3iXm2FHiAc"
 
-# Danh sách các owner (loại bỏ giá trị trùng lặp)
-OWNER_IDS = [5867402532, 6370114941, 6922955912, 5161512205, 1906855234, 6247748448, 1829150726, 6670259427]
+# Danh sách các owner (không chứa giá trị trùng lặp)
+OWNER_IDS = [5867402532, 6370114941, 6922955912, 5161512205, 1906855234, 6247748448, 1829150726]
 
 # -------------------------------
 # CÀI ĐẶT DATABASE VỚI SQLALCHEMY
 # -------------------------------
-DATABASE_URL = "sqlite:///data.db"  # File database mới, tự tạo nếu chưa tồn tại
+DATABASE_URL = "sqlite:///data.db"  # File database mới (tự tạo nếu chưa tồn tại)
 engine = create_engine(DATABASE_URL, echo=False)
 Base = declarative_base()
 
@@ -82,7 +83,7 @@ def convert_time_to_seconds(time_str):
     return None
 
 # -------------------------------
-# DANH SÁCH THÔNG ĐIỆP MẪU
+# DANH SÁCH THÔNG ĐIỆP MẪU & ROLE
 # -------------------------------
 funny_messages = [
     "🚀 {name} bay màu !",
@@ -160,7 +161,7 @@ welcome_messages = [
 app = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 # -------------------------------
-# Decorator: Dành cho các lệnh quản trị (owner-only)
+# Decorator: dành cho các lệnh quản trị (owner-only)
 # -------------------------------
 def owner_only(func):
     async def wrapper(client, message):
@@ -169,6 +170,21 @@ def owner_only(func):
             return
         return await func(client, message)
     return wrapper
+
+# -------------------------------
+# Lệnh /dongbo: Đồng bộ toàn bộ thành viên trong nhóm (chỉ ID 5867402532 được dùng)
+# -------------------------------
+@app.on_message(filters.command("dongbo") & filters.group)
+async def dongbo_handler(client, message):
+    if message.from_user.id != 5867402532:
+        await message.reply("Bạn không có quyền sử dụng lệnh này.")
+        return
+    chat_id = message.chat.id
+    count = 0
+    async for member in client.iter_chat_members(chat_id):
+        save_user_orm(chat_id, member.user, message.date)
+        count += 1
+    await message.reply(f"Đã đồng bộ {count} thành viên từ nhóm.")
 
 # -------------------------------
 # Sự kiện: Khi có thành viên mới gia nhập nhóm, lưu thông tin và gửi lời chào.
@@ -251,6 +267,7 @@ async def report_handler(client, message):
 
 # -------------------------------
 # Lệnh /xinfo hoặc /kiemtra: Kiểm tra thông tin người dùng tại nhóm
+# (Định dạng theo yêu cầu)
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
@@ -267,23 +284,27 @@ async def xinfo_handler(client, message):
         else:
             target = message.from_user
 
-    info = (
-        f"🪪 **Thông tin người dùng:**\n"
-        f"**Họ:** {target.last_name if target.last_name else 'Không có'}\n"
-        f"**Tên:** {target.first_name}\n"
-        f"**ID:** `{target.id}`\n"
-        f"**Username:** {'@' + target.username if target.username else 'Không có'}\n"
-        f"**Hồ sơ:** [Nhấn vào đây](tg://user?id={target.id})\n"
-    )
+    info = "🪪 Thông tin người dùng:\n"
+    info += f"Họ: {target.last_name if target.last_name else 'Không có'}\n"
+    info += f"Tên: {target.first_name}\n"
+    info += f"ID: {target.id}\n"
+    info += f"Username: {'@' + target.username if target.username else 'Không có'}\n"
+    info += f"Hồ sơ: [Nhấn vào đây](tg://user?id={target.id})\n"
     if message.chat and message.chat.type != "private":
         try:
             member = await client.get_chat_member(message.chat.id, target.id)
             status = member.status
         except Exception:
             status = "Không xác định"
-        info += f"**Trạng thái trong nhóm:** {status}\n"
+        if target.id in OWNER_IDS:
+            role = random.choice(["Trùm cuối", "Chủ Tịch", "Vua", "Trùm Mafia", "Tộc trưởng", "Hiệu trưởng"])
+        elif status in ["administrator", "creator"]:
+            role = random.choice(["Ăn bám", "Chân chạy vặt", "Người hầu", "Lính lác"])
+        else:
+            role = random.choice(["Lính quèn", "Trẻ sơ sinh", "Trẻ trâu", "Thực tập sinh"])
+        info += f"Trạng thái trong nhóm: {role}\n"
     else:
-        info += "**Không có thông tin nhóm**\n"
+        info += "Trạng thái trong nhóm: Không có thông tin nhóm\n"
     await message.reply(info)
 
 # -------------------------------
@@ -333,7 +354,7 @@ async def xban_user(client, message):
         return
     ban_message = (
         f"🚨 **Đã BLOCK người dùng!**\n"
-        f"🆔 **ID:** `{user.id}`\n"
+        f"🆔 **ID:** {user.id}\n"
         f"👤 **Họ & Tên:** {user.first_name} {user.last_name if user.last_name else ''}\n"
         f"🔗 **Username:** {'@' + user.username if user.username else 'Không có'}\n"
         f"📌 **Hồ sơ:** [Nhấn vào đây](tg://user?id={user.id})\n"
@@ -419,7 +440,7 @@ async def xmute_user(client, message):
         return
     mute_message = (
         f"🔇 **Đã MUTE người dùng!**\n"
-        f"🆔 **ID:** `{user.id}`\n"
+        f"🆔 **ID:** {user.id}\n"
         f"👤 **Họ & Tên:** {user.first_name} {user.last_name if user.last_name else ''}\n"
         f"🔗 **Username:** {'@' + user.username if user.username else 'Không có'}\n"
         f"📌 **Hồ sơ:** [Nhấn vào đây](tg://user?id={user.id})\n"
@@ -525,94 +546,44 @@ async def xunmute_user(client, message):
         await message.reply(f"❌ Không thể mở mute! Lỗi: {e}")
 
 # -------------------------------
-# Lệnh “shizuku”: Cho phép owner gọi lệnh qua cụm “shizuku ơi” hoặc “shizuku,”.
-# Chuyển đổi lệnh tương ứng (ban, mute, unban, unmute) và xử lý; nếu gửi “shizuku, bạn được ai tạo ra?” trả lời mặc định.
+# Lệnh /scl: Tìm kiếm bài hát trên SoundCloud, tải và gửi file MP3 lên nhóm.
 # -------------------------------
-@app.on_message(filters.regex(r"(?i)^shizuku(,| ơi)"))
-async def shizuku_handler(client, message):
-    if message.from_user.id not in OWNER_IDS:
-        await message.reply("Bạn không có quyền sử dụng lệnh này.")
+@app.on_message(filters.command("scl") & filters.group)
+async def scl_handler(client, message):
+    import soundcloud  # Cài đặt: pip install soundcloud
+    # Nếu bạn có file chứa API key, hãy import và sử dụng; ví dụ:
+    # from soundcloud_api import CLIENT_ID
+    # sc_client = soundcloud.Client(client_id=CLIENT_ID)
+    # Ở đây, ví dụ sử dụng scdl để tải bài hát.
+    if len(message.text.split(maxsplit=1)) < 2:
+        await message.reply("Vui lòng nhập tên bài hát sau lệnh /scl.")
         return
-    text = message.text.strip()
-    if text.lower().startswith("shizuku ơi"):
-        trigger_len = len("shizuku ơi")
-    elif text.lower().startswith("shizuku,"):
-        trigger_len = len("shizuku,")
-    else:
-        trigger_len = len("shizuku")
-    command_text = text[trigger_len:].strip()
-    if not command_text:
-        await message.reply("Bạn có thể dùng:\n"
-                            "shizuku ơi ban/block <ID/username> [thời gian] [lý do]\n"
-                            "shizuku ơi mute <ID/username> [thời gian] [lý do]\n"
-                            "shizuku ơi unban <ID/username>\n"
-                            "shizuku ơi unmute/ummute <ID/username>\n"
-                            "shizuku, bạn được ai tạo ra?")
+    query = message.text.split(maxsplit=1)[1]
+    await message.reply("Đang tìm bài hát trên SoundCloud...")
+    # Tìm URL bài hát trên SoundCloud (công khai)
+    track_url = f"https://soundcloud.com/{query.replace(' ', '_')}"
+    if not track_url:
+        await message.reply("Không tìm thấy bài hát trên SoundCloud với từ khóa này.")
         return
-    parts = command_text.split()
-    cmd = parts[0].lower()
-    if cmd in ["ban", "block"]:
-        new_text = "/xban " + " ".join(parts[1:])
-        message.text = new_text
-        await xban_user(client, message)
-    elif cmd == "mute":
-        new_text = "/xmute " + " ".join(parts[1:])
-        message.text = new_text
-        await xmute_user(client, message)
-    elif cmd == "unban":
-        new_text = "/xanxa " + " ".join(parts[1:])
-        message.text = new_text
-        await xanxa_user(client, message)
-    elif cmd in ["unmute", "ummute"]:
-        new_text = "/xunmute " + " ".join(parts[1:])
-        message.text = new_text
-        await xunmute_user(client, message)
-    elif "được ai tạo ra" in command_text.lower():
-        await message.reply("Tôi được @OverFlowVIP và (Chat GPT plus) tạo ra🐶")
-    else:
-        await message.reply("Lệnh không hợp lệ. Bạn có thể dùng: ban/block, mute, unban, unmute, hoặc 'shizuku, bạn được ai tạo ra'.")
-
-# -------------------------------
-# Lệnh /list: Hiển thị danh sách lệnh của bot – mọi người đều có thể dùng
-# -------------------------------
-@app.on_message(filters.command("list") & (filters.group | filters.private))
-async def list_handler(client, message):
-    commands = (
-        "Tau không muốn chào đâu nhưng dev bắt tau chào đấy🐶\n"
-        "Danh sách lệnh bên dưới:\n\n"
-        "/batdau - Chào mừng người dùng\n"
-        "/report - Báo cáo tin nhắn cần report (reply tin cần báo cáo)\n"
-        "/xinfo hoặc /kiemtra - Kiểm tra thông tin người dùng tại nhóm\n"
-        "/xban hoặc /block - Ban người dùng (owner dùng)\n"
-        "/xmute hoặc /xtuhinh - Mute người dùng (owner dùng)\n"
-        "/xanxa - Unban người dùng (owner dùng)\n"
-        "/xunmute - Unmute người dùng (owner dùng)\n"
-        "/kickbot - Kick bot ra khỏi nhóm (tin nhắn riêng, chỉ ID 5867402532 dùng)\n"
-        "shizuku ơi ... - Gọi lệnh qua 'shizuku'\n"
-    )
-    await message.reply(commands)
-
-# -------------------------------
-# Lệnh /kickbot: Kick bot ra khỏi nhóm (tin nhắn riêng, chỉ ID 5867402532 dùng)
-# -------------------------------
-@app.on_message(filters.command("kickbot") & filters.private)
-async def kickbot_handler(client, message):
-    if message.from_user.id != 5867402532:
-        await message.reply("Bạn không có quyền sử dụng lệnh này.")
-        return
-    args = message.text.split(maxsplit=1)
-    if len(args) < 2:
-        await message.reply("Vui lòng cung cấp ID nhóm cần kick bot ra.")
-        return
-    group_id = args[1]
+    sanitized_query = "".join(c for c in query if c.isalnum() or c in (" ", "_")).rstrip().replace(" ", "_")
+    output_file = f"{sanitized_query}.mp3"
+    cmd = ["scdl", "-l", track_url, "-f", "mp3", "-o", output_file]
     try:
-        await client.leave_chat(group_id)
-        await message.reply(f"Đã kick bot ra khỏi nhóm {group_id}.")
+        subprocess.run(cmd, check=True)
     except Exception as e:
-        await message.reply(f"Không thể kick bot ra khỏi nhóm {group_id}. Lỗi: {e}")
+        await message.reply(f"Không thể tải bài hát. Lỗi: {e}")
+        return
+    await message.reply("Đang chuyển đổi bài hát sang MP3 và gửi lên nhóm...")
+    try:
+        await client.send_audio(message.chat.id, audio=output_file, caption=f"Bài hát: {query}")
+    except Exception as e:
+        await message.reply(f"Không thể gửi bài hát. Lỗi: {e}")
+    finally:
+        if os.path.exists(output_file):
+            os.remove(output_file)
 
 # -------------------------------
-# Sự kiện: Khi thành viên rời nhóm, lấy thông tin từ DB và hành động gần đây
+# Sự kiện: Khi thành viên rời nhóm, lấy thông tin từ DB và hành động gần đây để tạm biệt.
 # -------------------------------
 @app.on_chat_member_updated()
 async def member_left_handler(client, event: ChatMemberUpdated):
@@ -620,12 +591,9 @@ async def member_left_handler(client, event: ChatMemberUpdated):
         if event.old_chat_member.status not in ["left", "kicked"] and event.new_chat_member.status in ["left", "kicked"]:
             chat_id = event.chat.id
             user = event.old_chat_member.user
-
-            # Truy vấn thông tin từ DB (nếu có)
             db = SessionLocal()
             user_record = db.query(User).filter_by(chat_id=str(chat_id), user_id=str(user.id)).first()
             db.close()
-
             if user_record:
                 try:
                     join_time = datetime.fromtimestamp(user_record.joined).strftime("%d/%m/%Y %H:%M:%S")
@@ -633,15 +601,15 @@ async def member_left_handler(client, event: ChatMemberUpdated):
                     join_time = "Không xác định"
                 farewell_message = (
                     f"👋 **{user.first_name} {user.last_name or ''}** vừa rời khỏi nhóm.\n"
-                    f"🆔 ID: `{user.id}`\n"
-                    f"🔗 Username: @{user.username if user.username else 'Không có'}\n"
+                    f"🆔 ID: {user.id}\n"
+                    f"🔗 Username: {'@' + user.username if user.username else 'Không có'}\n"
                     f"📅 Tham gia từ: {join_time}"
                 )
             else:
                 farewell_message = (
                     f"👋 **{user.first_name} {user.last_name or ''}** vừa rời khỏi nhóm.\n"
-                    f"🆔 ID: `{user.id}`\n"
-                    f"🔗 Username: @{user.username if user.username else 'Không có'}"
+                    f"🆔 ID: {user.id}\n"
+                    f"🔗 Username: {'@' + user.username if user.username else 'Không có'}"
                 )
             await client.send_message(chat_id, farewell_message)
 
