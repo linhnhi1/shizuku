@@ -196,7 +196,7 @@ async def list_handler(client, message):
         "Danh sách lệnh bên dưới:\n\n"
         "/batdau - Chào mừng người dùng\n"
         "/report - Báo cáo tin nhắn cần report (reply tin cần báo cáo)\n"
-        "/xinfo hoặc /kiemtra - Hiển thị THẺ THÔNG HÀNH của người dùng\n"
+        "/xinfo hoặc /kiemtra - Kiểm tra thông tin người dùng tại nhóm (trạng thái thật)\n"
         "/dongbo - Đồng bộ thành viên (chỉ ID 5867402532 dùng)\n"
         "/xban hoặc /block - Ban người dùng (owner dùng)\n"
         "/xmute hoặc /xtuhinh - Mute người dùng (owner dùng)\n"
@@ -254,60 +254,41 @@ async def report_handler(client, message):
             pass
 
 # -------------------------------
-# Lệnh /xinfo hoặc /kiemtra: Hiển thị THẺ THÔNG HÀNH (dùng parse_mode="HTML")
+# Lệnh /xinfo hoặc /kiemtra: Kiểm tra thông tin người dùng tại nhóm
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
-    try:
-        # Xác định đối tượng cần lấy thông tin:
-        if message.reply_to_message:
-            target = message.reply_to_message.from_user
-        else:
-            args = message.text.split(maxsplit=1)
-            if len(args) >= 2:
-                query = args[1].strip()
-                if query.startswith('@'):
-                    query = query[1:]
-                if query.isdigit():
-                    target = await client.get_users(int(query))
-                else:
-                    target = await client.get_users(query)
-            else:
-                target = message.from_user
-
-        # Thu thập thông tin
-        user_id = target.id
-        first_name = target.first_name if target.first_name else "Không có"
-        username = target.username if target.username else "Không có"
-        user_link = f"tg://user?id={user_id}"
-
-        # Xác định trạng thái của người dùng dựa vào thông tin trong nhóm (nếu có)
-        if message.chat and message.chat.type != "private":
+    if message.reply_to_message:
+        target = message.reply_to_message.from_user
+    else:
+        args = message.text.split(maxsplit=1)
+        if len(args) >= 2:
             try:
-                member = await client.get_chat_member(message.chat.id, user_id)
-                if user_id in OWNER_IDS:
-                    status = "Owner/Hoàng thượng"
-                elif member.status in ["administrator", "creator"]:
-                    status = "Admin/Tể tướng"
-                else:
-                    status = "member/Lính Quènnn"
-            except Exception as e:
-                status = f"Không xác định ({e})"
+                target = await client.get_users(args[1])
+            except Exception:
+                await message.reply(f"❌ Không thể tìm thấy người dùng với thông tin {args[1]}")
+                return
         else:
-            status = "Không có thông tin nhóm"
+            target = message.from_user
 
-        # Tạo note dùng HTML
-        note = (
-            "🎫 <b>THẺ THÔNG HÀNH</b> 🎫\n"
-            f"🔑 <b>Mã Định Danh:</b> {user_id}\n"
-            f"📝 <b>Họ Tên:</b> {first_name}\n"
-            f"🪪 <b>Bí Danh:</b> @{username}\n"
-            f"📍 <b>Địa Chỉ:</b> <a href=\"{user_link}\">{first_name}</a>\n"
-            f"✨ <b>Trạng thái:</b> {status}\n"
-        )
-        await message.reply(note, parse_mode="HTML", disable_web_page_preview=True)
-    except Exception as ex:
-        await message.reply(f"❌ Đã xảy ra lỗi: {ex}")
+    info = "🪪 Thông tin người dùng:\n"
+    info += f"Họ: {target.last_name if target.last_name else 'Không có'}\n"
+    info += f"Tên: {target.first_name}\n"
+    info += f"ID: {target.id}\n"
+    info += f"Username: {'@' + target.username if target.username else 'Không có'}\n"
+    info += f"Hồ sơ: [Nhấn vào đây](tg://user?id={target.id})\n"
+
+    if message.chat and message.chat.type != "private":
+        try:
+            member = await client.get_chat_member(message.chat.id, target.id)
+            status = member.status  # creator, administrator, member, restricted, left, kicked
+        except Exception:
+            status = "Không xác định"
+        info += f"Trạng thái trong nhóm: {status}\n"
+    else:
+        info += "Trạng thái trong nhóm: Không có thông tin nhóm\n"
+
+    await message.reply(info)
 
 # -------------------------------
 # Lệnh /fban: Global ban người dùng ở tất cả các nhóm (chỉ ID 5867402532 được dùng)
@@ -317,6 +298,7 @@ async def fban_user(client, message):
     if message.from_user.id != 5867402532:
         await message.reply("Bạn không có quyền sử dụng lệnh này!")
         return
+    # Lấy user ID từ reply hoặc tham số
     if message.reply_to_message:
         user_id = message.reply_to_message.from_user.id
     else:
@@ -335,6 +317,7 @@ async def fban_user(client, message):
     global_bans.append(user_id)
     save_global_bans_sync(global_bans)
     await message.reply(f"✅ Global ban đã được áp dụng cho user ID {user_id}. Đang ban ở các nhóm...")
+    # Lấy danh sách các chat mà bot tham gia
     dialogs = [d.chat for d in await client.get_dialogs()]
     count = 0
     for chat in dialogs:
@@ -623,7 +606,7 @@ async def xunmute_user(client, message):
 
 # -------------------------------
 # Lệnh “shizuku”: Cho phép owner gọi lệnh qua cụm “shizuku ơi” hoặc “shizuku,”.
-# Hỗ trợ chuyển đổi các lệnh: ban, mute, unban, unmute, globan ban/unban.
+# Chuyển đổi lệnh tương ứng (ban, mute, unban, unmute, globan ban/unban) và xử lý.
 # -------------------------------
 @app.on_message(filters.regex(r"(?i)^shizuku(,| ơi)"))
 async def shizuku_handler(client, message):
@@ -687,7 +670,7 @@ async def shizuku_handler(client, message):
         await message.reply("Lệnh không hợp lệ. Bạn có thể dùng: ban/block, mute, unban, unmute, globan ban/unban, hoặc 'shizuku, bạn được ai tạo ra'.")
 
 # -------------------------------
-# Sự kiện: Khi thành viên rời nhóm, gửi lời tạm biệt.
+# Sự kiện: Khi thành viên rời nhóm, lấy thông tin từ DB và gửi lời tạm biệt.
 # -------------------------------
 @app.on_chat_member_updated()
 async def member_left_handler(client, event: ChatMemberUpdated):
