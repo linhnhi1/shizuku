@@ -267,7 +267,7 @@ async def report_handler(client, message):
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
     try:
-        # Xác định đối tượng cần lấy thông tin:
+        # Xác định đối tượng: nếu reply, lấy người được reply; ngược lại, nếu có tham số, dùng tham số đó; nếu không, dùng người gửi
         if message.reply_to_message:
             target = message.reply_to_message.from_user
         else:
@@ -289,7 +289,7 @@ async def xinfo_handler(client, message):
         username = target.username if target.username else "Không có"
         user_link = f"tg://user?id={user_id}"
 
-        # Xác định trạng thái của người dùng dựa vào thông tin trong nhóm (nếu có)
+        # Xác định trạng thái của người dùng trong nhóm (nếu có)
         if message.chat and message.chat.type != "private":
             try:
                 member = await client.get_chat_member(message.chat.id, user_id)
@@ -304,15 +304,16 @@ async def xinfo_handler(client, message):
         else:
             status = "Không có thông tin nhóm"
 
+        # Tạo note theo định dạng yêu cầu
         note = (
-            "🎫 **THẺ THÔNG HÀNH** 🎫\n"
-            f"🔑 **Mã Định Danh:** `{user_id}`\n"
-            f"📝 **Họ Tên:** {first_name}\n"
-            f"🪪 **Bí Danh:** @{username}\n"
-            f"📍 **Địa Chỉ:** [{first_name}]({user_link})\n"
-            f"✨ **Trạng thái:** {status}\n"
+            "🎫 *THẺ THÔNG HÀNH* 🎫\n"
+            f"🔑 *Mã Định Danh:* `{user_id}`\n"
+            f"📝 *Họ Tên:* {first_name}\n"
+            f"🪪 *Bí Danh:* @{username}\n"
+            f"📍 *Địa Chỉ:* [{first_name}]({user_link})\n"
+            f"✨ *Trạng thái:* {status}\n"
         )
-        await message.reply(note, parse_mode="markdownv2")
+        await message.reply(note, parse_mode="markdown")
     except Exception as ex:
         await message.reply(f"❌ Đã xảy ra lỗi: {ex}")
 
