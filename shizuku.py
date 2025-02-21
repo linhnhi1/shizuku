@@ -2,6 +2,7 @@ import os
 import random
 import asyncio
 import re
+from pyrogram.enums import ChatEventAction
 from pyrogram import Client, filters
 from pyrogram.types import ChatPermissions
 
@@ -20,7 +21,7 @@ API_HASH = "a614a27fc39c3e54bf2e15da2a971e78"
 BOT_TOKEN = "7573169920:AAFLHoWTkCQJLTyCqn9fpwMk_3iXm2FHiAc"
 
 # Danh sách các owner
-OWNER_IDS = [5867402532, 6370114941, 6922955912]
+OWNER_IDS = [5867402532, 6370114941, 6922955912, 5161512205, 1906855234]
 
 # -------------------------------
 # CÀI ĐẶT DATABASE VỚI SQLALCHEMY
@@ -626,6 +627,22 @@ async def kickbot_handler(client, message):
     except Exception as e:
         await message.reply(f"Không thể kick bot ra khỏi nhóm {group_id}. Lỗi: {e}")
 
+@app.on_chat_member_updated()
+async def member_left_handler(client, event):
+    if event.new_chat_member.status == "left":
+        chat_id = event.chat.id
+        user = event.old_chat_member.user
+
+        # Tạo thông báo tạm biệt
+        farewell_message = (
+            f"👋 **{user.first_name} {user.last_name or ''}** vừa rời khỏi nhóm.\n"
+            f"🆔 ID: `{user.id}`\n"
+            f"🔗 Username: @{user.username}" if user.username else "Không có"
+        )
+
+        # Gửi thông báo tạm biệt đến nhóm
+        await client.send_message(chat_id, farewell_message)
+        
 # -------------------------------
 # CHẠY BOT
 # -------------------------------
