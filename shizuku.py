@@ -3,10 +3,11 @@ import random
 import asyncio
 import re
 import subprocess
+import json
 from datetime import datetime
 
 from pyrogram import Client, filters
-from pyrogram.types import ChatPermissions, ChatMemberUpdated
+from pyrogram.types import ChatPermissions, ChatMemberUpdated, InlineKeyboardMarkup, InlineKeyboardButton
 
 # -------------------------------
 # Import SQLAlchemy và thiết lập ORM
@@ -47,10 +48,8 @@ class User(Base):
 Base.metadata.create_all(engine)
 SessionLocal = sessionmaker(bind=engine)
 
-# -------------------------------
-# Hàm save_user_orm: Lưu thông tin người dùng vào DB
-# -------------------------------
 def save_user_orm(chat_id, user, joined):
+    """Lưu hoặc cập nhật thông tin người dùng vào DB."""
     db = SessionLocal()
     existing = db.query(User).filter_by(chat_id=str(chat_id), user_id=str(user.id)).first()
     if existing:
@@ -71,10 +70,8 @@ def save_user_orm(chat_id, user, joined):
     db.commit()
     db.close()
 
-# -------------------------------
-# Hàm chuyển đổi thời gian (ví dụ: "10s", "5m", "2h", "1d", "1w") thành số giây
-# -------------------------------
 def convert_time_to_seconds(time_str):
+    """Chuyển đổi chuỗi thời gian (10s, 5m, 2h, 1d, 1w) thành số giây."""
     time_units = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
     match = re.match(r"(\d+)([smhdw])", time_str)
     if match:
@@ -83,7 +80,7 @@ def convert_time_to_seconds(time_str):
     return None
 
 # -------------------------------
-# DANH SÁCH THÔNG ĐIỆP MẪU & CÁC ROLE
+# DANH SÁCH THÔNG ĐIỆP & ROLE
 # -------------------------------
 admin_protection_messages = [
     "Sếp ơi, nó là admin đó bình tĩnh🐶.",
@@ -133,8 +130,12 @@ group_greeting_messages = [
 
 welcome_messages = [
     "chào mừng bạn! 😊", "xin chào, vui vẻ nhé! 😄", "chào, mừng gia nhập! 🌟", "hello, chào bạn! 😍"
-    # Bạn có thể thêm hoặc rút gọn danh sách này theo ý muốn
 ]
+
+# -------------------------------
+# KHỞI TẠO LOCK CHO LỆNH /ytb
+# -------------------------------
+ytb_lock = asyncio.Lock()
 
 # -------------------------------
 # KHỞI TẠO CLIENT BOT
@@ -168,39 +169,26 @@ async def dongbo_handler(client, message):
     await message.reply(f"Đã đồng bộ {count} thành viên từ nhóm.")
 
 # -------------------------------
-# Sự kiện: Khi có thành viên mới gia nhập nhóm, lưu thông tin và gửi lời chào.
+# Lệnh /list: Hiển thị danh sách lệnh của bot (mọi người đều có thể dùng)
 # -------------------------------
-@app.on_message(filters.new_chat_members)
-async def new_member_handler(client, message):
-    chat_id = str(message.chat.id)
-    me = await client.get_me()
-    bot_added = any(member.id == me.id for member in message.new_chat_members)
-    if bot_added:
-        greeting = random.choice(group_greeting_messages)
-        await message.reply(greeting)
-        inviter = message.from_user
-        group_link = f"https://t.me/{message.chat.username}" if message.chat.username else "Không có liên kết"
-        info = (
-            f"🤖 **Bot được thêm vào nhóm!**\n"
-            f"💬 **Chat ID:** `{message.chat.id}`\n"
-            f"👤 **Người thêm:** {inviter.first_name if inviter else 'Không rõ'}\n"
-            f"🆔 **ID người thêm:** `{inviter.id if inviter else 'Không rõ'}`\n"
-            f"🔗 **Link nhóm:** {group_link}"
-        )
-        for owner in OWNER_IDS:
-            await client.send_message(owner, info)
-        async for member in client.iter_chat_members(message.chat.id):
-            save_user_orm(message.chat.id, member.user, message.date)
-    else:
-        for member in message.new_chat_members:
-            save_user_orm(message.chat.id, member, message.date)
-        welcome = random.choice(welcome_messages)
-        for member in message.new_chat_members:
-            if member.id != me.id:
-                try:
-                    await client.send_message(message.chat.id, welcome)
-                except Exception:
-                    pass
+@app.on_message(filters.command("list") & (filters.group | filters.private))
+async def list_handler(client, message):
+    commands = (
+        "Tau không muốn chào đâu nhưng dev bắt tau chào đấy🐶\n"
+        "Danh sách lệnh bên dưới:\n\n"
+        "/batdau - Chào mừng người dùng\n"
+        "/report - Báo cáo tin nhắn cần report (reply tin cần báo cáo)\n"
+        "/xinfo hoặc /kiemtra - Kiểm tra thông tin người dùng tại nhóm (trạng thái thật)\n"
+        "/dongbo - Đồng bộ toàn bộ thành viên (chỉ ID 5867402532 dùng)\n"
+        "/xban hoặc /block - Ban người dùng (owner dùng)\n"
+        "/xmute hoặc /xtuhinh - Mute người dùng (owner dùng)\n"
+        "/xanxa - Unban người dùng (owner dùng)\n"
+        "/xunmute - Unmute người dùng (owner dùng)\n"
+        "/ytb - Tìm kiếm bài hát trên YouTube, hiển thị danh sách lựa chọn dưới dạng button\n"
+        "shizuku ơi ... - Gọi lệnh qua 'shizuku'\n"
+        "/list - Hiển thị danh sách lệnh"
+    )
+    await message.reply_text(commands)
 
 # -------------------------------
 # Lệnh /batdau: Gửi lời chào ngẫu nhiên (mọi người đều có thể dùng)
@@ -247,8 +235,7 @@ async def report_handler(client, message):
             pass
 
 # -------------------------------
-# Lệnh /xinfo hoặc /kiemtra: Kiểm tra thông tin người dùng tại nhóm
-# (Hiển thị trạng thái thực tế trong nhóm)
+# Lệnh /xinfo hoặc /kiemtra: Kiểm tra thông tin người dùng tại nhóm (trạng thái thật)
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
@@ -571,52 +558,91 @@ async def shizuku_handler(client, message):
         await message.reply("Lệnh không hợp lệ. Bạn có thể dùng: ban/block, mute, unban, unmute, hoặc 'shizuku, bạn được ai tạo ra'.")
 
 # -------------------------------
-# Lệnh /scl: Tìm kiếm bài hát trên YouTube, tải và gửi file MP3 lên nhóm.
+# Lệnh /ytb: Tìm kiếm bài hát trên YouTube, liệt kê danh sách dưới dạng button để chọn
+# Mọi người đều có thể sử dụng.
 # -------------------------------
 @app.on_message(filters.command("ytb") & filters.group)
-async def scl_handler(client, message):
-    """
-    Tìm bài hát trên YouTube, chuyển đổi sang MP3 và gửi lên nhóm.
-    Cần cài yt-dlp (pip install yt-dlp) và ffmpeg (pkg install ffmpeg).
-    """
+async def ytb_handler(client, message):
     if len(message.text.split(maxsplit=1)) < 2:
-        await message.reply("Vui lòng nhập tên bài hát sau lệnh /scl.")
+        await message.reply("Vui lòng nhập tên bài hát sau lệnh /ytb.")
+        return
+    query = message.text.split(maxsplit=1)[1]
+    await message.reply("Đang tìm kiếm bài hát trên YouTube...")
+    try:
+        result = subprocess.check_output(
+            ["yt-dlp", "-j", f"ytsearch5:{query}"],
+            universal_newlines=True
+        )
+    except Exception as e:
+        await message.reply(f"Không thể tìm kiếm bài hát. Lỗi: {e}")
         return
 
-    query = message.text.split(maxsplit=1)[1]
-    await message.reply("Đang tìm bài hát trên YouTube...")
+    results = []
+    for line in result.strip().split("\n"):
+        try:
+            obj = json.loads(line)
+            results.append(obj)
+        except Exception:
+            continue
 
-    # Sử dụng yt-dlp để tìm và tải video (chỉ audio) từ YouTube
-    sanitized_query = "".join(c for c in query if c.isalnum() or c in (" ", "_")).rstrip().replace(" ", "_")
-    output_file = f"{sanitized_query}.%(ext)s"
+    if not results:
+        await message.reply("Không tìm thấy bài hát nào.")
+        return
+
+    buttons = []
+    for obj in results:
+        video_id = obj.get("id")
+        title = obj.get("title", "Không xác định")
+        duration = obj.get("duration", 0)
+        minutes = duration // 60
+        seconds = duration % 60
+        btn_text = f"{title} ({minutes}:{seconds:02d})"
+        # Callback data format: ytb|video_id|sanitized_title
+        sanitized_title = "".join(c for c in title if c.isalnum() or c in (" ", "_")).rstrip().replace(" ", "_")
+        callback_data = f"ytb|{video_id}|{sanitized_title}"
+        buttons.append([InlineKeyboardButton(btn_text, callback_data=callback_data)])
+
+    reply_markup = InlineKeyboardMarkup(buttons)
+    await message.reply("Chọn bài hát:", reply_markup=reply_markup)
+
+# -------------------------------
+# Callback Query Handler cho lệnh /ytb
+# -------------------------------
+@app.on_callback_query(filters.regex(r"^ytb\|"))
+async def ytb_callback_handler(client, callback_query):
+    data = callback_query.data  # format: ytb|video_id|sanitized_title
+    parts = data.split("|", 2)
+    if len(parts) < 3:
+        await callback_query.answer("Dữ liệu không hợp lệ.", show_alert=True)
+        return
+    video_id = parts[1]
+    sanitized_title = parts[2]
+    await callback_query.answer("Đang tải bài hát, vui lòng chờ...", show_alert=True)
     cmd = [
         "yt-dlp",
         "--extract-audio",
         "--audio-format", "mp3",
-        "--output", output_file,
-        f"ytsearch1:{query}"
+        "--output", f"{sanitized_title}.%(ext)s",
+        f"https://www.youtube.com/watch?v={video_id}"
     ]
     try:
         subprocess.run(cmd, check=True)
     except Exception as e:
-        await message.reply(f"Không thể tải bài hát. Lỗi: {e}")
+        await callback_query.edit_message_text(f"Không thể tải bài hát. Lỗi: {e}")
         return
-
-    # Tìm file mp3 đã tải (định dạng output là sanitized_query.mp3)
-    mp3_filename = f"{sanitized_query}.mp3"
+    mp3_filename = f"{sanitized_title}.mp3"
     if not os.path.exists(mp3_filename):
-        possible_files = [f for f in os.listdir() if f.startswith(sanitized_query) and f.endswith(".mp3")]
+        possible_files = [f for f in os.listdir() if f.startswith(sanitized_title) and f.endswith(".mp3")]
         if possible_files:
             mp3_filename = possible_files[0]
         else:
-            await message.reply("Không tìm thấy file MP3 sau khi tải.")
+            await callback_query.edit_message_text("Không tìm thấy file MP3 sau khi tải.")
             return
-
-    await message.reply("Đang gửi bài hát lên nhóm...")
     try:
-        await client.send_audio(message.chat.id, audio=mp3_filename, caption=f"Bài hát: {query}")
+        await client.send_audio(callback_query.message.chat.id, audio=mp3_filename, caption=f"Bài hát: {sanitized_title}")
+        await callback_query.edit_message_text("Bài hát đã được gửi!")
     except Exception as e:
-        await message.reply(f"Không thể gửi bài hát. Lỗi: {e}")
+        await callback_query.edit_message_text(f"Không thể gửi bài hát. Lỗi: {e}")
     finally:
         if os.path.exists(mp3_filename):
             os.remove(mp3_filename)
@@ -630,11 +656,9 @@ async def member_left_handler(client, event: ChatMemberUpdated):
         if event.old_chat_member.status not in ["left", "kicked"] and event.new_chat_member.status in ["left", "kicked"]:
             chat_id = event.chat.id
             user = event.old_chat_member.user
-
             db = SessionLocal()
             user_record = db.query(User).filter_by(chat_id=str(chat_id), user_id=str(user.id)).first()
             db.close()
-
             if user_record:
                 try:
                     join_time = datetime.fromtimestamp(user_record.joined).strftime("%d/%m/%Y %H:%M:%S")
