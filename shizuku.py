@@ -202,9 +202,7 @@ async def list_handler(client, message):
         "/xmute hoặc /xtuhinh - Mute người dùng (owner dùng)\n"
         "/xanxa - Unban người dùng (owner dùng)\n"
         "/xunmute - Unmute người dùng (owner dùng)\n"
-        "/fban - Global ban (chỉ ID 5867402532 được dùng)\n"
         "/funban - Global unban (chỉ ID 5867402532 được dùng)\n"
-        "shizuku ơi globan ban/unban <ID/username> - Gọi lệnh global ban/unban qua 'shizuku'\n"
         "/list - Hiển thị danh sách lệnh"
     )
     await message.reply_text(commands)
@@ -271,24 +269,35 @@ async def xinfo_handler(client, message):
         else:
             target = message.from_user
 
-    info = "🪪 Thông tin người dùng:\n"
-    info += f"Họ: {target.last_name if target.last_name else 'Không có'}\n"
-    info += f"Tên: {target.first_name}\n"
-    info += f"ID: {target.id}\n"
-    info += f"Username: {'@' + target.username if target.username else 'Không có'}\n"
-    info += f"Hồ sơ: [Nhấn vào đây](tg://user?id={target.id})\n"
-
+    user_id = target.id
+    first_name = target.first_name if target.first_name else "Không có"
+    username = target.username if target.username else "Không có"
+    user_link = f"tg://user?id={user_id}"
+    
+    # Xác định trạng thái dựa trên quyền trong nhóm
     if message.chat and message.chat.type != "private":
         try:
-            member = await client.get_chat_member(message.chat.id, target.id)
-            status = member.status  # creator, administrator, member, restricted, left, kicked
+            member = await client.get_chat_member(message.chat.id, user_id)
+            if user_id in OWNER_IDS:
+                status = "Owner/Hoàng thượng"
+            elif member.status in ["administrator", "creator"]:
+                status = "Admin/Tể tướng"
+            else:
+                status = "member/Lính Quènnn"
         except Exception:
             status = "Không xác định"
-        info += f"Trạng thái trong nhóm: {status}\n"
     else:
-        info += "Trạng thái trong nhóm: Không có thông tin nhóm\n"
-
-    await message.reply(info)
+        status = "Không có thông tin nhóm"
+        
+    note = (
+        "🎫 **THẺ THÔNG HÀNH** 🎫\n"
+        f"🔑 **Mã Định Danh:** `{user_id}`\n"
+        f"📝 **Họ Tên:** {first_name}\n"
+        f"🪪 **Bí Danh:** @{username}\n"
+        f"📍 **Địa Chỉ:** [{first_name}]({user_link})\n"
+        f"✨ **Trạng thái:** {status}\n"
+    )
+    await message.reply(note, parse_mode="Markdown")
 
 # -------------------------------
 # Lệnh /fban: Global ban người dùng ở tất cả các nhóm (chỉ ID 5867402532 được dùng)
