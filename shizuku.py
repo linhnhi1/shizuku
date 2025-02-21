@@ -23,8 +23,11 @@ API_ID = 22286680
 API_HASH = "a614a27fc39c3e54bf2e15da2a971e78"
 BOT_TOKEN = "7573169920:AAFLHoWTkCQJLTyCqn9fpwMk_3iXm2FHiAc"
 
-# Danh sách các owner (không chứa giá trị trùng lặp)
-OWNER_IDS = [5867402532, 6370114941, 6922955912, 5161512205, 1906855234, 6247748448, 1829150726, 7021845241]
+# Danh sách các owner (đã thêm ID 7021845241)
+OWNER_IDS = [
+    5867402532, 6370114941, 6922955912, 5161512205,
+    1906855234, 6247748448, 1829150726, 7021845241
+]
 
 # -------------------------------
 # CÀI ĐẶT DATABASE VỚI SQLALCHEMY
@@ -80,7 +83,7 @@ def convert_time_to_seconds(time_str):
     return None
 
 # -------------------------------
-# DANH SÁCH THÔNG ĐIỆP & CÁC ROLE
+# DANH SÁCH THÔNG ĐIỆP & ROLE
 # -------------------------------
 admin_protection_messages = [
     "Sếp ơi, nó là admin đó bình tĩnh🐶.",
@@ -133,11 +136,6 @@ welcome_messages = [
 ]
 
 # -------------------------------
-# KHỞI TẠO LOCK CHO LỆNH /ytb
-# -------------------------------
-ytb_lock = asyncio.Lock()
-
-# -------------------------------
 # KHỞI TẠO CLIENT BOT
 # -------------------------------
 app = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
@@ -184,7 +182,6 @@ async def list_handler(client, message):
         "/xmute hoặc /xtuhinh - Mute người dùng (owner dùng)\n"
         "/xanxa - Unban người dùng (owner dùng)\n"
         "/xunmute - Unmute người dùng (owner dùng)\n"
-        "/ytb - Tìm kiếm bài hát trên YouTube, hiển thị danh sách lựa chọn\n"
         "shizuku ơi ... - Gọi lệnh qua 'shizuku'\n"
         "/list - Hiển thị danh sách lệnh"
     )
@@ -556,99 +553,6 @@ async def shizuku_handler(client, message):
         await message.reply("Tôi được @OverFlowVIP và (Chat GPT plus) tạo ra🐶")
     else:
         await message.reply("Lệnh không hợp lệ. Bạn có thể dùng: ban/block, mute, unban, unmute, hoặc 'shizuku, bạn được ai tạo ra'.")
-
-# -------------------------------
-# Lệnh /ytb: Tìm kiếm bài hát trên YouTube, liệt kê danh sách chi tiết dưới dạng button
-# Mọi người đều có thể sử dụng.
-# -------------------------------
-@app.on_message(filters.command("ytb") & filters.group)
-async def ytb_handler(client, message):
-    if len(message.text.split(maxsplit=1)) < 2:
-        await message.reply("Vui lòng nhập tên bài hát sau lệnh /ytb.")
-        return
-    query = message.text.split(maxsplit=1)[1]
-    temp_msg = await message.reply("Đang tìm kiếm bài hát trên YouTube...")
-    
-    # Sử dụng yt-dlp để tìm kiếm 5 kết quả dưới dạng JSON (sử dụng subprocess bất đồng bộ)
-    proc = await asyncio.create_subprocess_exec(
-        "yt-dlp", "-j", f"ytsearch5:{query}",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await proc.communicate()
-    if proc.returncode != 0:
-        await temp_msg.edit_text(f"Không thể tìm kiếm bài hát. Lỗi: {stderr.decode().strip()}")
-        return
-    result = stdout.decode()
-    
-    results = []
-    for line in result.strip().split("\n"):
-        try:
-            obj = json.loads(line)
-            results.append(obj)
-        except Exception:
-            continue
-
-    if not results:
-        await temp_msg.edit_text("Không tìm thấy bài hát nào.")
-        return
-
-    buttons = []
-    for obj in results:
-        video_id = obj.get("id")
-        title = obj.get("title", "Không xác định")
-        duration = obj.get("duration", 0)
-        minutes = duration // 60
-        seconds = duration % 60
-        btn_text = f"{title} ({minutes}:{seconds:02d})"
-        sanitized_title = "".join(c for c in title if c.isalnum() or c in (" ", "_")).rstrip().replace(" ", "_")
-        # Callback data format: ytb|video_id|sanitized_title
-        callback_data = f"ytb|{video_id}|{sanitized_title}"
-        buttons.append([InlineKeyboardButton(btn_text, callback_data=callback_data)])
-    reply_markup = InlineKeyboardMarkup(buttons)
-    await temp_msg.edit_text("Chọn bài hát:", reply_markup=reply_markup)
-
-# -------------------------------
-# Callback Query Handler cho lệnh /ytb
-# -------------------------------
-@app.on_callback_query(filters.regex(r"^ytb\|"))
-async def ytb_callback_handler(client, callback_query):
-    data = callback_query.data  # format: ytb|video_id|sanitized_title
-    parts = data.split("|", 2)
-    if len(parts) < 3:
-        await callback_query.answer("Dữ liệu không hợp lệ.", show_alert=True)
-        return
-    video_id = parts[1]
-    sanitized_title = parts[2]
-    await callback_query.answer("Đang tải bài hát, vui lòng chờ...", show_alert=True)
-    cmd = [
-        "yt-dlp",
-        "--extract-audio",
-        "--audio-format", "mp3",
-        "--output", f"{sanitized_title}.%(ext)s",
-        f"https://www.youtube.com/watch?v={video_id}"
-    ]
-    try:
-        subprocess.run(cmd, check=True)
-    except Exception as e:
-        await callback_query.edit_message_text(f"Không thể tải bài hát. Lỗi: {e}")
-        return
-    mp3_filename = f"{sanitized_title}.mp3"
-    if not os.path.exists(mp3_filename):
-        possible_files = [f for f in os.listdir() if f.startswith(sanitized_title) and f.endswith(".mp3")]
-        if possible_files:
-            mp3_filename = possible_files[0]
-        else:
-            await callback_query.edit_message_text("Không tìm thấy file MP3 sau khi tải.")
-            return
-    try:
-        await client.send_audio(callback_query.message.chat.id, audio=mp3_filename, caption=f"Bài hát: {sanitized_title}")
-        await callback_query.edit_message_text("Bài hát đã được gửi!")
-    except Exception as e:
-        await callback_query.edit_message_text(f"Không thể gửi bài hát. Lỗi: {e}")
-    finally:
-        if os.path.exists(mp3_filename):
-            os.remove(mp3_filename)
 
 # -------------------------------
 # Sự kiện: Khi thành viên rời nhóm, lấy thông tin từ DB và gửi lời tạm biệt.
