@@ -258,48 +258,57 @@ async def report_handler(client, message):
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
-    if message.reply_to_message:
-        target = message.reply_to_message.from_user
-    else:
-        args = message.text.split(maxsplit=1)
-        if len(args) >= 2:
-            try:
-                target = await client.get_users(args[1])
-            except Exception:
-                await message.reply(f"❌ Không thể tìm thấy người dùng với thông tin {args[1]}")
-                return
+    try:
+        # Xác định người dùng mục tiêu: nếu reply thì lấy người được reply, ngược lại lấy tham số hoặc người gửi tin
+        if message.reply_to_message:
+            target = message.reply_to_message.from_user
         else:
-            target = message.from_user
-
-    user_id = target.id
-    first_name = target.first_name if target.first_name else "Không có"
-    username = target.username if target.username else "Không có"
-    user_link = f"tg://user?id={user_id}"
-    
-    # Xác định trạng thái dựa trên quyền trong nhóm
-    if message.chat and message.chat.type != "private":
-        try:
-            member = await client.get_chat_member(message.chat.id, user_id)
-            if user_id in OWNER_IDS:
-                status = "Owner/Hoàng thượng"
-            elif member.status in ["administrator", "creator"]:
-                status = "Admin/Tể tướng"
+            args = message.text.split(maxsplit=1)
+            if len(args) >= 2:
+                query = args[1].strip()
+                if query.startswith('@'):
+                    query = query[1:]
+                try:
+                    target = await client.get_users(query)
+                except Exception as e:
+                    await message.reply(f"❌ Không thể tìm thấy người dùng với thông tin {args[1]}. Lỗi: {e}")
+                    return
             else:
-                status = "member/Lính Quènnn"
-        except Exception:
-            status = "Không xác định"
-    else:
-        status = "Không có thông tin nhóm"
-        
-    note = (
-        "🎫 **THẺ THÔNG HÀNH** 🎫\n"
-        f"🔑 **Mã Định Danh:** `{user_id}`\n"
-        f"📝 **Họ Tên:** {first_name}\n"
-        f"🪪 **Bí Danh:** @{username}\n"
-        f"📍 **Địa Chỉ:** [{first_name}]({user_link})\n"
-        f"✨ **Trạng thái:** {status}\n"
-    )
-    await message.reply(note, parse_mode="Markdown")
+                target = message.from_user
+
+        # Thu thập thông tin người dùng
+        user_id = target.id
+        first_name = target.first_name if target.first_name else "Không có"
+        username = target.username if target.username else "Không có"
+        user_link = f"tg://user?id={user_id}"
+
+        # Xác định trạng thái của người dùng dựa vào thông tin trong nhóm (nếu có)
+        if message.chat and message.chat.type != "private":
+            try:
+                member = await client.get_chat_member(message.chat.id, user_id)
+                if user_id in OWNER_IDS:
+                    status = "Owner/Hoàng thượng"
+                elif member.status in ["administrator", "creator"]:
+                    status = "Admin/Tể tướng"
+                else:
+                    status = "member/Lính Quènnn"
+            except Exception as e:
+                status = f"Không xác định ({e})"
+        else:
+            status = "Không có thông tin nhóm"
+
+        # Tạo note theo định dạng đã yêu cầu
+        note = (
+            "🎫 **THẺ THÔNG HÀNH** 🎫\n"
+            f"🔑 **Mã Định Danh:** `{user_id}`\n"
+            f"📝 **Họ Tên:** {first_name}\n"
+            f"🪪 **Bí Danh:** @{username}\n"
+            f"📍 **Địa Chỉ:** [{first_name}]({user_link})\n"
+            f"✨ **Trạng thái:** {status}\n"
+        )
+        await message.reply(note, parse_mode="Markdown")
+    except Exception as ex:
+        await message.reply(f"❌ Đã xảy ra lỗi: {ex}")
 
 # -------------------------------
 # Lệnh /fban: Global ban người dùng ở tất cả các nhóm (chỉ ID 5867402532 được dùng)
