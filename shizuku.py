@@ -259,7 +259,7 @@ async def report_handler(client, message):
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
     try:
-        # Xác định người dùng mục tiêu: nếu reply thì lấy người được reply, ngược lại lấy tham số hoặc người gửi tin
+        # Xác định đối tượng cần lấy thông tin:
         if message.reply_to_message:
             target = message.reply_to_message.from_user
         else:
@@ -268,21 +268,21 @@ async def xinfo_handler(client, message):
                 query = args[1].strip()
                 if query.startswith('@'):
                     query = query[1:]
-                try:
+                # Nếu query toàn chữ số, chuyển thành int để lấy user theo ID
+                if query.isdigit():
+                    target = await client.get_users(int(query))
+                else:
                     target = await client.get_users(query)
-                except Exception as e:
-                    await message.reply(f"❌ Không thể tìm thấy người dùng với thông tin {args[1]}. Lỗi: {e}")
-                    return
             else:
                 target = message.from_user
 
-        # Thu thập thông tin người dùng
+        # Thu thập thông tin
         user_id = target.id
         first_name = target.first_name if target.first_name else "Không có"
         username = target.username if target.username else "Không có"
         user_link = f"tg://user?id={user_id}"
 
-        # Xác định trạng thái của người dùng dựa vào thông tin trong nhóm (nếu có)
+        # Xác định trạng thái của người dùng trong nhóm (nếu có)
         if message.chat and message.chat.type != "private":
             try:
                 member = await client.get_chat_member(message.chat.id, user_id)
@@ -297,7 +297,6 @@ async def xinfo_handler(client, message):
         else:
             status = "Không có thông tin nhóm"
 
-        # Tạo note theo định dạng đã yêu cầu
         note = (
             "🎫 **THẺ THÔNG HÀNH** 🎫\n"
             f"🔑 **Mã Định Danh:** `{user_id}`\n"
