@@ -222,7 +222,7 @@ async def list_handler(client, message):
         "shizuku ơi globan ban/unban &lt;ID/username&gt; - Gọi lệnh global ban/unban qua 'shizuku'<br>"
         "/list - Hiển thị danh sách lệnh"
     )
-    await message.reply_text(commands)
+    await message.reply_text(commands, parse_mode="html")
 
 # -------------------------------
 # Lệnh /batdau: Gửi lời chào ngẫu nhiên
@@ -247,7 +247,7 @@ async def report_handler(client, message):
         f"{reporter_fullname} đã gửi báo cáo đoạn chat của thành viên cho quản trị viên, "
         "đề nghị @OverFlowVIP kiểm tra và xử lý."
     )
-    await message.reply(group_report_message)
+    await message.reply(group_report_message, parse_mode="html")
     if message.chat.username:
         message_link = f"https://t.me/{message.chat.username}/{reported_msg.message_id}"
     else:
@@ -356,7 +356,7 @@ async def fban_user(client, message):
         db.add(new_global_ban)
         db.commit()
     db.close()
-    await message.reply(f"✅ Global ban đã được áp dụng cho user ID {user_id}. Đang ban ở các nhóm...")
+    await message.reply(f"✅ Global ban đã được áp dụng cho user ID {user_id}. Đang ban ở các nhóm...", parse_mode="html")
     dialogs = [d.chat for d in await client.get_dialogs()]
     count = 0
     for chat in dialogs:
@@ -366,7 +366,7 @@ async def fban_user(client, message):
                 count += 1
             except Exception:
                 pass
-    await message.reply(f"✅ Đã thực hiện global ban ở {count} nhóm.")
+    await message.reply(f"✅ Đã thực hiện global ban ở {count} nhóm.", parse_mode="html")
 
 # -------------------------------
 # Lệnh /funban: Global unban (chỉ ID 5867402532 được dùng) và xóa khỏi DB
@@ -401,7 +401,7 @@ async def funban_user(client, message):
         db.delete(record)
         db.commit()
     db.close()
-    await message.reply(f"✅ Global ban đã được gỡ cho user ID {user_id}. Đang unban ở các nhóm...")
+    await message.reply(f"✅ Global ban đã được gỡ cho user ID {user_id}. Đang unban ở các nhóm...", parse_mode="html")
     dialogs = [d.chat for d in await client.get_dialogs()]
     count = 0
     for chat in dialogs:
@@ -411,7 +411,7 @@ async def funban_user(client, message):
                 count += 1
             except Exception:
                 pass
-    await message.reply(f"✅ Đã gỡ global ban ở {count} nhóm.")
+    await message.reply(f"✅ Đã gỡ global ban ở {count} nhóm.", parse_mode="html")
 
 # -------------------------------
 # Lệnh /xban (alias /block): Ban người dùng (chỉ owner dùng)
@@ -680,7 +680,6 @@ async def shizuku_handler(client, message):
         return
     parts = command_text.split()
     cmd = parts[0].lower()
-    # Xử lý global ban/unban trước và chỉ cho phép ID 5867402532
     if "globan ban" in command_text.lower():
         if message.from_user.id != 5867402532:
             await message.reply("🚫 Bạn không có quyền sử dụng lệnh global ban này!")
@@ -724,7 +723,6 @@ async def name_change_handler(client, event: ChatMemberUpdated):
     try:
         old_user = event.old_chat_member.user
         new_user = event.new_chat_member.user
-        # Chỉ xử lý nếu cùng một user
         if old_user.id != new_user.id:
             return
         old_first = old_user.first_name or "Không có"
@@ -733,7 +731,6 @@ async def name_change_handler(client, event: ChatMemberUpdated):
         new_last = new_user.last_name or "Không có"
         old_username = old_user.username or "Không có"
         new_username = new_user.username or "Không có"
-        # Nếu không có thay đổi, thoát
         if old_first == new_first and old_last == new_last and old_username == new_username:
             return
         msg = (
@@ -748,7 +745,6 @@ async def name_change_handler(client, event: ChatMemberUpdated):
             f"🐳 Username mới: {'@' + new_username if new_username != 'Không có' else new_username}"
         )
         await client.send_message(event.chat.id, msg, parse_mode="html")
-        # Cập nhật thông tin người dùng vào DB
         save_user_orm(event.chat.id, new_user, int(datetime.now().timestamp()))
     except Exception as e:
         print(f"Error in name_change_handler: {e}")
