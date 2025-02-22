@@ -714,7 +714,7 @@ async def shizuku_handler(client, message):
 
 # -------------------------------
 # THÊM: TỰ ĐỘNG PHÁT HIỆN VÀ THÔNG BÁO ĐỔI TÊN/USERNAME
-# Khi người dùng đổi tên hoặc username, bot sẽ gửi thông báo và lưu lại thông tin mới vào DB.
+# Khi người dùng đổi tên hoặc username, bot sẽ thông báo và lưu lại thông tin mới vào DB.
 # -------------------------------
 @app.on_chat_member_updated()
 async def name_change_handler(client, event: ChatMemberUpdated):
@@ -784,7 +784,7 @@ async def member_left_handler(client, event: ChatMemberUpdated):
 
 # -------------------------------
 # Lệnh /xtt: Xem thời tiết chi tiết ở tỉnh và huyện
-# Ví dụ: /xtt (tên tỉnh) (tên huyện)
+# Cú pháp: /xtt (tên tỉnh) (tên huyện)
 # -------------------------------
 @app.on_message(filters.command("xtt") & (filters.group | filters.private))
 async def weather_handler(client, message):
@@ -794,30 +794,40 @@ async def weather_handler(client, message):
         return
     province = args[1]
     district = args[2]
-    # Thay YOUR_API_KEY bằng API key của bạn từ openweathermap.org
-    WEATHER_API_KEY = "9e7fd10e50f04f510e910e59ba798ef4"
-    location = f"{district},{province},VN"
-    url = f"http://api.openweathermap.org/data/2.5/weather?q={location}&appid={WEATHER_API_KEY}&units=metric&lang=vi"
+    # Sử dụng OpenWeatherMap Geocoding API để chuyển đổi từ địa danh thành tọa độ
+    location = f"{district}, {province}, VN"
+    GEOCODE_URL = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid=4dfb839e638b6f0ea1b7fe4444940519"
     try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            data = response.json()
-            city = data.get("name", "Không xác định")
-            temp = data["main"].get("temp", "Không có")
-            weather_desc = data["weather"][0].get("description", "Không có")
-            humidity = data["main"].get("humidity", "Không có")
-            wind_speed = data["wind"].get("speed", "Không có")
-            reply_text = (
-                f"Thời tiết tại {district}, {province}:\n"
-                f"Thành phố: {city}\n"
-                f"Nhiệt độ: {temp}°C\n"
-                f"Trạng thái: {weather_desc}\n"
-                f"Độ ẩm: {humidity}%\n"
-                f"Tốc độ gió: {wind_speed} m/s"
-            )
-            await message.reply(reply_text)
-        else:
-            await message.reply("Không tìm thấy thông tin thời tiết cho địa điểm này.")
+        geo_response = requests.get(GEOCODE_URL)
+        if geo_response.status_code != 200:
+            await message.reply(f"Không thể lấy tọa độ địa điểm. Mã lỗi: {geo_response.status_code}")
+            return
+        geo_data = geo_response.json()
+        if not geo_data:
+            await message.reply("Không tìm thấy tọa độ cho địa điểm này. Vui lòng kiểm tra lại tên tỉnh/huyện.")
+            return
+        lat = geo_data[0].get("lat")
+        lon = geo_data[0].get("lon")
+        # Gọi One Call API để lấy thông tin thời tiết chi tiết
+        WEATHER_URL = f"https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&exclude=minutely,hourly,alerts&appid=4dfb839e638b6f0ea1b7fe4444940519&units=metric&lang=vi"
+        weather_response = requests.get(WEATHER_URL)
+        if weather_response.status_code != 200:
+            await message.reply(f"Không thể lấy thông tin thời tiết. Mã lỗi: {weather_response.status_code}")
+            return
+        weather_data = weather_response.json()
+        current = weather_data.get("current", {})
+        temp = current.get("temp", "Không có")
+        weather_desc = current.get("weather", [{}])[0].get("description", "Không có")
+        humidity = current.get("humidity", "Không có")
+        wind_speed = current.get("wind_speed", "Không có")
+        reply_text = (
+            f"Thời tiết tại {district}, {province}:\n"
+            f"Nhiệt độ: {temp}°C\n"
+            f"Trạng thái: {weather_desc}\n"
+            f"Độ ẩm: {humidity}%\n"
+            f"Tốc độ gió: {wind_speed} m/s"
+        )
+        await message.reply(reply_text)
     except Exception as e:
         await message.reply(f"Lỗi khi lấy thông tin thời tiết: {e}")
 
