@@ -48,7 +48,7 @@ class User(Base):
     def __repr__(self):
         return f"<User(user_id={self.user_id}, first_name={self.first_name})>"
 
-# Model lưu lịch sử đổi tên/username
+# Model lưu lịch sử đổi tên/username (nếu cần lưu lịch sử riêng)
 class NameChange(Base):
     __tablename__ = 'name_changes'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -281,10 +281,10 @@ async def xinfo_handler(client, message):
 
         user_id = target.id
         first_name = target.first_name if target.first_name else "Không có"
+        last_name = target.last_name if target.last_name else "Không có"
         username = target.username if target.username else "Không có"
         user_link = f"tg://user?id={user_id}"
 
-        # Xác định trạng thái của người dùng trong nhóm
         if message.chat and message.chat.type != "private":
             try:
                 member = await client.get_chat_member(message.chat.id, user_id)
@@ -302,7 +302,7 @@ async def xinfo_handler(client, message):
         info = (
             "🎫 <b>THẺ THÔNG HÀNH</b> 🎫<br>"
             f"🔑 <b>Mã Định Danh:</b> {user_id}<br>"
-            f"📝 <b>Họ Tên:</b> {first_name}<br>"
+            f"📝 <b>Họ Tên:</b> {last_name} {first_name}<br>"
             f"🪪 <b>Bí Danh:</b> @{username}<br>"
             f"📍 <b>Địa Chỉ:</b> <a href=\"{user_link}\">{first_name}</a><br>"
             f"✨ <b>Trạng thái:</b> {status}<br>"
@@ -433,7 +433,7 @@ async def xban_user(client, message):
     ban_message = (
         f"🚨 <b>Đã BLOCK người dùng!</b><br>"
         f"🆔 <b>ID:</b> {user.id}<br>"
-        f"👤 <b>Họ & Tên:</b> {user.first_name} {user.last_name if user.last_name else ''}<br>"
+        f"👤 <b>Họ & Tên:</b> {user.last_name if user.last_name else 'Không có'} {user.first_name if user.first_name else 'Không có'}<br>"
         f"🔗 <b>Username:</b> {'@' + user.username if user.username else 'Không có'}<br>"
         f"📌 <b>Hồ sơ:</b> <a href=\"tg://user?id={user.id}\">Nhấn vào đây</a><br>"
         f"❌ <b>Lý do:</b> {reason}<br>"
@@ -519,7 +519,7 @@ async def xmute_user(client, message):
     mute_message = (
         f"🔇 <b>Đã MUTE người dùng!</b><br>"
         f"🆔 <b>ID:</b> {user.id}<br>"
-        f"👤 <b>Họ & Tên:</b> {user.first_name} {user.last_name if user.last_name else ''}<br>"
+        f"👤 <b>Họ & Tên:</b> {user.last_name if user.last_name else 'Không có'} {user.first_name if user.first_name else 'Không có'}<br>"
         f"🔗 <b>Username:</b> {'@' + user.username if user.username else 'Không có'}<br>"
         f"📌 <b>Hồ sơ:</b> <a href=\"tg://user?id={user.id}\">Nhấn vào đây</a><br>"
         f"❌ <b>Lý do:</b> {reason}<br>"
@@ -624,6 +624,71 @@ async def xunmute_user(client, message):
         await message.reply(f"❌ Không thể mở mute! Lỗi: {e}")
 
 # -------------------------------
+# Lệnh “shizuku”: Cho phép owner gọi lệnh qua cụm “shizuku ơi” hoặc “shizuku,”.
+# Hỗ trợ chuyển đổi các lệnh: ban, mute, unban, unmute, globan ban/unban.
+# -------------------------------
+@app.on_message(filters.regex(r"(?i)^shizuku(,| ơi)"))
+async def shizuku_handler(client, message):
+    if message.from_user.id not in OWNER_IDS:
+        await message.reply("Bạn không có quyền sử dụng lệnh này.")
+        return
+    text = message.text.strip()
+    if text.lower().startswith("shizuku ơi"):
+        trigger_len = len("shizuku ơi")
+    elif text.lower().startswith("shizuku,"):
+        trigger_len = len("shizuku,")
+    else:
+        trigger_len = len("shizuku")
+    command_text = text[trigger_len:].strip()
+    if not command_text:
+        await message.reply("Bạn có thể dùng:\n"
+                            "shizuku ơi ban/block <ID/username> [thời gian] [lý do]\n"
+                            "shizuku ơi mute <ID/username> [thời gian] [lý do]\n"
+                            "shizuku ơi unban <ID/username>\n"
+                            "shizuku ơi unmute/ummute <ID/username>\n"
+                            "shizuku ơi globan ban <ID/username> (global ban chỉ ID 5867402532)\n"
+                            "shizuku ơi globan unban <ID/username> (global unban chỉ ID 5867402532)\n"
+                            "shizuku, bạn được ai tạo ra?")
+        return
+    parts = command_text.split()
+    cmd = parts[0].lower()
+    # Xử lý global ban/unban trước và chỉ cho phép ID 5867402532
+    if "globan ban" in command_text.lower():
+        if message.from_user.id != 5867402532:
+            await message.reply("Bạn không có quyền sử dụng lệnh global ban này!")
+            return
+        new_text = "/fban " + " ".join(parts[2:]) if len(parts) > 2 else "/fban"
+        message.text = new_text
+        await fban_user(client, message)
+    elif "globan unban" in command_text.lower():
+        if message.from_user.id != 5867402532:
+            await message.reply("Bạn không có quyền sử dụng lệnh global unban này!")
+            return
+        new_text = "/funban " + " ".join(parts[2:]) if len(parts) > 2 else "/funban"
+        message.text = new_text
+        await funban_user(client, message)
+    elif cmd in ["ban", "block"]:
+        new_text = "/xban " + " ".join(parts[1:])
+        message.text = new_text
+        await xban_user(client, message)
+    elif cmd == "mute":
+        new_text = "/xmute " + " ".join(parts[1:])
+        message.text = new_text
+        await xmute_user(client, message)
+    elif cmd == "unban":
+        new_text = "/xanxa " + " ".join(parts[1:])
+        message.text = new_text
+        await xanxa_user(client, message)
+    elif cmd in ["unmute", "ummute"]:
+        new_text = "/xunmute " + " ".join(parts[1:])
+        message.text = new_text
+        await xunmute_user(client, message)
+    elif "được ai tạo ra" in command_text.lower():
+        await message.reply("Tôi được @OverFlowVIP và (Chat GPT plus) tạo ra🐶")
+    else:
+        await message.reply("Lệnh không hợp lệ. Bạn có thể dùng: ban/block, mute, unban, unmute, globan ban/unban, hoặc 'shizuku, bạn được ai tạo ra'.")
+
+# -------------------------------
 # THÊM: TỰ ĐỘNG PHÁT HIỆN VÀ THÔNG BÁO ĐỔI TÊN/USERNAME
 # -------------------------------
 @app.on_chat_member_updated()
@@ -631,34 +696,35 @@ async def name_change_handler(client, event: ChatMemberUpdated):
     try:
         old_user = event.old_chat_member.user
         new_user = event.new_chat_member.user
-        # Kiểm tra nếu cùng 1 user và có thay đổi tên hoặc username
-        if old_user.id == new_user.id:
-            old_first = old_user.first_name or ""
-            new_first = new_user.first_name or ""
-            old_username = old_user.username or ""
-            new_username = new_user.username or ""
-            if old_first == new_first and old_username == new_username:
-                return  # Không có thay đổi nào
-            # Lưu thay đổi vào DB
-            db = SessionLocal()
-            name_change = NameChange(
-                user_id=str(new_user.id),
-                old_name=old_first,
-                new_name=new_first,
-                old_username=old_username,
-                new_username=new_username,
-                changed_at=int(datetime.now().timestamp())
-            )
-            db.add(name_change)
-            db.commit()
-            db.close()
-            # Tạo thông báo
-            msg = f"Shizuku check: Người dùng ID {new_user.id} đã đổi "
-            if old_first != new_first:
-                msg += f"tên: {old_first} -> {new_first}\n"
-            if old_username != new_username:
-                msg += f"username: {old_username} -> {new_username}\n"
-            await client.send_message(event.chat.id, msg)
+        # Chỉ xử lý nếu cùng một user
+        if old_user.id != new_user.id:
+            return
+        # Lấy thông tin cũ và mới
+        old_first = old_user.first_name or "Không có"
+        new_first = new_user.first_name or "Không có"
+        old_last = old_user.last_name or "Không có"
+        new_last = new_user.last_name or "Không có"
+        old_username = old_user.username or "Không có"
+        new_username = new_user.username or "Không có"
+        # Nếu không có thay đổi thì không thông báo
+        if old_first == new_first and old_last == new_last and old_username == new_username:
+            return
+        # Tạo thông báo theo định dạng yêu cầu
+        msg = (
+            f"Shizuku check🪪:\n"
+            f"ID: {new_user.id} đã đổi thông tin✍️\n"
+            f"🐮 Họ cũ: {old_last}\n"
+            f"🐶 Tên cũ: {old_first}\n"
+            f"🐒 Username cũ: {'@' + old_username if old_username != 'Không có' else old_username}\n"
+            f"------------------\n"
+            f"👤 Họ mới: {new_last}\n"
+            f"🐱 Tên mới: {new_first}\n"
+            f"🐳 Username mới: {'@' + new_username if new_username != 'Không có' else new_username}"
+        )
+        # Gửi thông báo lên nhóm
+        await client.send_message(event.chat.id, msg)
+        # Cập nhật thông tin người dùng vào DB
+        save_user_orm(event.chat.id, new_user, int(datetime.now().timestamp()))
     except Exception as e:
         print(f"Error in name_change_handler: {e}")
 
