@@ -94,15 +94,12 @@ def convert_time_to_seconds(time_str):
 # -------------------------------
 # DANH SÁCH THÔNG ĐIỆP & ROLE
 # -------------------------------
-admin_protection_messages = [
-    "Sếp ơi, nó là admin đó bình tĩnh🐶.",
+admin_protection_messages = ["Sếp ơi, nó là admin đó bình tĩnh🐶.",
     "Này này, admin này còn giá trị lợi dụng đấy sếp🌚.",
     "Hãy vào cài đặt sa thải admin rồi ban hoặc mute nhé!",
-    "Ôi, admin này làm sếp không vui, để em xử lý cho! 🐮"
-]
+    "Ôi, admin này làm sếp không vui, để em xử lý cho! 🐮"]
 
-funny_messages = [
-    "🚀 {name} bay màu !",
+funny_messages = ["🚀 {name} bay màu !",
     "😆 {name} vừa du hành qua không gian ảo!",
     "🎉 {name} đã được phóng thích!",
     "😎 {name} giờ tự do để tán gẫu!",
@@ -111,11 +108,9 @@ funny_messages = [
     "😂 {name} đã được bấm nút phục hồi quyền!",
     "🤩 {name} giờ đã trở lại đỉnh cao chat!",
     "🎈 {name} vừa được trả tự do!",
-    "🥳 {name} đã bùng nổ trở lại!"
-]
+    "🥳 {name} đã bùng nổ trở lại!"]
 
-missing_target_messages = [
-    "⚠️ Vui lòng cung cấp ID, username hoặc reply tin nhắn của thành viên cần xử lý!",
+missing_target_messages = ["⚠️ Vui lòng cung cấp ID, username hoặc reply tin nhắn của thành viên cần xử lý!",
     "❌ Bạn chưa chỉ định đối tượng cần xử lý!",
     "🚨 Thiếu thông tin, hãy thử lại!",
     "⛔ Không rõ đối tượng để ban/mute!",
@@ -124,11 +119,9 @@ missing_target_messages = [
     "🧐 Bạn có quên reply hoặc nhập id không?",
     "📢 Không có thông tin, hãy thử lại!",
     "🔍 Không tìm thấy đối tượng!",
-    "🚫 Vui lòng cung cấp ID, username hoặc reply cho người cần xử lý!"
-]
+    "🚫 Vui lòng cung cấp ID, username hoặc reply cho người cần xử lý!"]
 
-group_greeting_messages = [
-    "hello cà nha, bot đã đến rồi! 😄",
+group_greeting_messages = ["hello cà nha, bot đã đến rồi! 😄",
     "xin chào nhóm, rất vui được gặp! 🤗",
     "chào mọi người, bot đã xuất hiện! 😎",
     "hello team, cùng vui nào! 🎉",
@@ -137,12 +130,9 @@ group_greeting_messages = [
     "chào nhóm, sẵn sàng bất ngờ! 🌟",
     "hello, bot đã đến! 😁",
     "chào các bạn, thật hạnh phúc! 🎈",
-    "xin chào, cùng vui nhé! 😄"
-]
+    "xin chào, cùng vui nhé! 😄"]
 
-welcome_messages = [
-    "chào mừng bạn! 😊", "xin chào, vui vẻ nhé! 😄", "chào, mừng gia nhập! 🌟", "hello, chào bạn! 😍"
-]
+welcome_messages = ["chào mừng bạn! 😊", "xin chào, vui vẻ nhé! 😄", "chào, mừng gia nhập! 🌟", "hello, chào bạn! 😍"]
 
 # -------------------------------
 # GLOBAL BAN DATA (lưu vào file global_bans.json)
@@ -200,8 +190,7 @@ async def dongbo_handler(client, message):
 # -------------------------------
 @app.on_message(filters.command("list") & (filters.group | filters.private))
 async def list_handler(client, message):
-    commands = (
-        "Tau không muốn chào đâu nhưng dev bắt tau chào đấy🐶\n"
+    commands = ("Tau không muốn chào đâu nhưng dev bắt tau chào đấy🐶\n"
         "Danh sách lệnh bên dưới:\n\n"
         "/batdau - Chào mừng người dùng\n"
         "/report - Báo cáo tin nhắn cần report (reply tin cần báo cáo)\n"
@@ -210,12 +199,7 @@ async def list_handler(client, message):
         "/xban hoặc /block - Ban người dùng (owner dùng)\n"
         "/xmute hoặc /xtuhinh - Mute người dùng (owner dùng)\n"
         "/xanxa - Unban người dùng (owner dùng)\n"
-        "/xunmute - Unmute người dùng (owner dùng)\n"
-        "/fban - Global ban (chỉ ID 5867402532 được dùng)\n"
-        "/funban - Global unban (chỉ ID 5867402532 được dùng)\n"
-        "shizuku ơi globan ban/unban <ID/username> - Gọi lệnh global ban/unban qua 'shizuku'\n"
-        "/list - Hiển thị danh sách lệnh"
-    )
+        "/xunmute - Unmute người dùng (owner dùng)\n")
     await message.reply_text(commands)
 
 # -------------------------------
@@ -579,7 +563,7 @@ async def xanxa_user(client, message):
     chat_id = message.chat.id
     try:
         await client.unban_chat_member(chat_id, user.id)
-        await message.reply(f"🕊️ <b>{user.first_name}</b> đã được xóa án BLOCK!<br>" +
+        await message.reply(f"🕊️ <b>{user.first_name}</b> đã được xóa án Tử!<br>" +
                             random.choice(funny_messages).format(name=user.first_name), parse_mode="HTML")
     except Exception as e:
         await message.reply(f"❌ Không thể xóa án ban! Lỗi: {e}")
@@ -616,7 +600,7 @@ async def xunmute_user(client, message):
     )
     try:
         await client.restrict_chat_member(chat_id, user.id, full_permissions)
-        await message.reply(f"🎤 <b>{user.first_name}</b> đã được XUNmute và được cấp lại đầy đủ quyền!<br>" +
+        await message.reply(f"🎤 <b>{user.first_name}</b> đã được mở mic tha hồ gáy nhé!<br>" +
                             random.choice(funny_messages).format(name=user.first_name), parse_mode="HTML")
     except Exception as e:
         await message.reply(f"❌ Không thể mở mute! Lỗi: {e}")
@@ -628,7 +612,7 @@ async def xunmute_user(client, message):
 @app.on_message(filters.regex(r"(?i)^shizuku(,| ơi)"))
 async def shizuku_handler(client, message):
     if message.from_user.id not in OWNER_IDS:
-        await message.reply("Bạn không có quyền sử dụng lệnh này.")
+        await message.reply("🚫Bạn không có quyền sử dụng lệnh này.")
         return
     text = message.text.strip()
     if text.lower().startswith("shizuku ơi"):
@@ -653,14 +637,14 @@ async def shizuku_handler(client, message):
     # Xử lý global ban/unban trước và chỉ cho phép ID 5867402532
     if "globan ban" in command_text.lower():
         if message.from_user.id != 5867402532:
-            await message.reply("Bạn không có quyền sử dụng lệnh global ban này!")
+            await message.reply("🚫Bạn không có quyền sử dụng lệnh global ban này!")
             return
         new_text = "/fban " + " ".join(parts[2:]) if len(parts) > 2 else "/fban"
         message.text = new_text
         await fban_user(client, message)
     elif "globan unban" in command_text.lower():
         if message.from_user.id != 5867402532:
-            await message.reply("Bạn không có quyền sử dụng lệnh global unban này!")
+            await message.reply("🚫Bạn không có quyền sử dụng lệnh global unban này!")
             return
         new_text = "/funban " + " ".join(parts[2:]) if len(parts) > 2 else "/funban"
         message.text = new_text
@@ -708,8 +692,7 @@ async def name_change_handler(client, event: ChatMemberUpdated):
         if old_first == new_first and old_last == new_last and old_username == new_username:
             return
         # Tạo thông báo theo định dạng yêu cầu
-        msg = (
-            f"Shizuku check🪪:\n"
+        msg = (f"Shizuku check🪪:\n"
             f"ID: {new_user.id} đã đổi thông tin✍️\n"
             f"🐮 Họ cũ: {old_last}\n"
             f"🐶 Tên cũ: {old_first}\n"
@@ -717,8 +700,8 @@ async def name_change_handler(client, event: ChatMemberUpdated):
             f"------------------\n"
             f"👤 Họ mới: {new_last}\n"
             f"🐱 Tên mới: {new_first}\n"
-            f"🐳 Username mới: {'@' + new_username if new_username != 'Không có' else new_username}"
-        )
+            f"🐳 Username mới: {'@' + new_username if new_username != 'Không có' else new_username}")
+            
         # Gửi thông báo lên nhóm
         await client.send_message(event.chat.id, msg)
         # Cập nhật thông tin người dùng vào DB
