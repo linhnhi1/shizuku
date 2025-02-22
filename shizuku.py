@@ -284,7 +284,7 @@ async def xinfo_handler(client, message):
         username = target.username if target.username else "Không có"
         user_link = f"tg://user?id={user_id}"
 
-        # Xác định trạng thái trong nhóm
+        # Xác định trạng thái của người dùng trong nhóm
         if message.chat and message.chat.type != "private":
             try:
                 member = await client.get_chat_member(message.chat.id, user_id)
@@ -299,7 +299,7 @@ async def xinfo_handler(client, message):
         else:
             status = "Không có thông tin nhóm"
 
-        note = (
+        info = (
             "🎫 <b>THẺ THÔNG HÀNH</b> 🎫<br>"
             f"🔑 <b>Mã Định Danh:</b> {user_id}<br>"
             f"📝 <b>Họ Tên:</b> {first_name}<br>"
@@ -307,7 +307,7 @@ async def xinfo_handler(client, message):
             f"📍 <b>Địa Chỉ:</b> <a href=\"{user_link}\">{first_name}</a><br>"
             f"✨ <b>Trạng thái:</b> {status}<br>"
         )
-        await message.reply(note, parse_mode="HTML", disable_web_page_preview=True)
+        await message.reply(info, parse_mode="HTML", disable_web_page_preview=True)
     except Exception as ex:
         await message.reply(f"❌ Đã xảy ra lỗi: {ex}")
 
@@ -431,12 +431,12 @@ async def xban_user(client, message):
         await message.reply(f"❌ Không thể BLOCK người dùng! Lỗi: {e}")
         return
     ban_message = (
-        f"🚨 <b>Đã BLOCK người dùng!</b>\n"
-        f"🆔 <b>ID:</b> {user.id}\n"
-        f"👤 <b>Họ & Tên:</b> {user.first_name} {user.last_name if user.last_name else ''}\n"
-        f"🔗 <b>Username:</b> {'@' + user.username if user.username else 'Không có'}\n"
-        f"📌 <b>Hồ sơ:</b> <a href=\"tg://user?id={user.id}\">Nhấn vào đây</a>\n"
-        f"❌ <b>Lý do:</b> {reason}\n"
+        f"🚨 <b>Đã BLOCK người dùng!</b><br>"
+        f"🆔 <b>ID:</b> {user.id}<br>"
+        f"👤 <b>Họ & Tên:</b> {user.first_name} {user.last_name if user.last_name else ''}<br>"
+        f"🔗 <b>Username:</b> {'@' + user.username if user.username else 'Không có'}<br>"
+        f"📌 <b>Hồ sơ:</b> <a href=\"tg://user?id={user.id}\">Nhấn vào đây</a><br>"
+        f"❌ <b>Lý do:</b> {reason}<br>"
     )
     if duration_seconds:
         ban_message += f"⏳ <b>Thời gian BLOCK:</b> {maybe_time}"
@@ -458,7 +458,7 @@ async def xban_user(client, message):
         await asyncio.sleep(duration_seconds)
         try:
             await client.unban_chat_member(chat_id, user.id)
-            await message.reply(f"✅ <b>{user.first_name}</b> đã được mở BLOCK sau {maybe_time}!\n" +
+            await message.reply(f"✅ <b>{user.first_name}</b> đã được mở BLOCK sau {maybe_time}!<br>" +
                                 random.choice(funny_messages).format(name=user.first_name), parse_mode="HTML")
         except Exception as e:
             await message.reply(f"❌ Không thể mở BLOCK! Lỗi: {e}")
@@ -517,12 +517,12 @@ async def xmute_user(client, message):
         await message.reply(f"❌ Không thể MUTE người dùng! Lỗi: {e}")
         return
     mute_message = (
-        f"🔇 <b>Đã MUTE người dùng!</b>\n"
-        f"🆔 <b>ID:</b> {user.id}\n"
-        f"👤 <b>Họ & Tên:</b> {user.first_name} {user.last_name if user.last_name else ''}\n"
-        f"🔗 <b>Username:</b> {'@' + user.username if user.username else 'Không có'}\n"
-        f"📌 <b>Hồ sơ:</b> <a href=\"tg://user?id={user.id}\">Nhấn vào đây</a>\n"
-        f"❌ <b>Lý do:</b> {reason}\n"
+        f"🔇 <b>Đã MUTE người dùng!</b><br>"
+        f"🆔 <b>ID:</b> {user.id}<br>"
+        f"👤 <b>Họ & Tên:</b> {user.first_name} {user.last_name if user.last_name else ''}<br>"
+        f"🔗 <b>Username:</b> {'@' + user.username if user.username else 'Không có'}<br>"
+        f"📌 <b>Hồ sơ:</b> <a href=\"tg://user?id={user.id}\">Nhấn vào đây</a><br>"
+        f"❌ <b>Lý do:</b> {reason}<br>"
     )
     if duration_seconds:
         mute_message += f"⏳ <b>Thời gian MUTE:</b> {maybe_time}"
@@ -552,7 +552,7 @@ async def xmute_user(client, message):
         )
         try:
             await client.restrict_chat_member(chat_id, user.id, full_permissions)
-            await message.reply(f"✅ <b>{user.first_name}</b> đã được mở MUTE sau {maybe_time}!\n" +
+            await message.reply(f"✅ <b>{user.first_name}</b> đã được mở MUTE sau {maybe_time}!<br>" +
                                 random.choice(funny_messages).format(name=user.first_name), parse_mode="HTML")
         except Exception as e:
             await message.reply(f"❌ Không thể mở MUTE! Lỗi: {e}")
@@ -581,7 +581,7 @@ async def xanxa_user(client, message):
     chat_id = message.chat.id
     try:
         await client.unban_chat_member(chat_id, user.id)
-        await message.reply(f"🕊️ <b>{user.first_name}</b> đã được xóa án BLOCK!\n" +
+        await message.reply(f"🕊️ <b>{user.first_name}</b> đã được xóa án BLOCK!<br>" +
                             random.choice(funny_messages).format(name=user.first_name), parse_mode="HTML")
     except Exception as e:
         await message.reply(f"❌ Không thể xóa án ban! Lỗi: {e}")
@@ -618,7 +618,7 @@ async def xunmute_user(client, message):
     )
     try:
         await client.restrict_chat_member(chat_id, user.id, full_permissions)
-        await message.reply(f"🎤 <b>{user.first_name}</b> đã được XUNmute và được cấp lại đầy đủ quyền!\n" +
+        await message.reply(f"🎤 <b>{user.first_name}</b> đã được XUNmute và được cấp lại đầy đủ quyền!<br>" +
                             random.choice(funny_messages).format(name=user.first_name), parse_mode="HTML")
     except Exception as e:
         await message.reply(f"❌ Không thể mở mute! Lỗi: {e}")
@@ -631,35 +631,34 @@ async def name_change_handler(client, event: ChatMemberUpdated):
     try:
         old_user = event.old_chat_member.user
         new_user = event.new_chat_member.user
-        if old_user.id != new_user.id:
-            return  # không xảy ra cho cùng 1 user
-        old_first = old_user.first_name or ""
-        new_first = new_user.first_name or ""
-        old_username = old_user.username or ""
-        new_username = new_user.username or ""
-        if old_first == new_first and old_username == new_username:
-            return  # không có thay đổi nào
-        # Lưu lịch sử đổi tên vào DB
-        db = SessionLocal()
-        from sqlalchemy import func
-        name_change = NameChange(
-            user_id=str(new_user.id),
-            old_name=old_first,
-            new_name=new_first,
-            old_username=old_username,
-            new_username=new_username,
-            changed_at = int(datetime.now().timestamp())
-        )
-        db.add(name_change)
-        db.commit()
-        db.close()
-        # Tạo thông báo
-        msg = f"Shizuku check người dùng ID {new_user.id} đã đổi "
-        if old_first != new_first:
-            msg += f"tên: {old_first} -> {new_first}\n"
-        if old_username != new_username:
-            msg += f"username: {old_username} -> {new_username}\n"
-        await client.send_message(event.chat.id, msg)
+        # Kiểm tra nếu cùng 1 user và có thay đổi tên hoặc username
+        if old_user.id == new_user.id:
+            old_first = old_user.first_name or ""
+            new_first = new_user.first_name or ""
+            old_username = old_user.username or ""
+            new_username = new_user.username or ""
+            if old_first == new_first and old_username == new_username:
+                return  # Không có thay đổi nào
+            # Lưu thay đổi vào DB
+            db = SessionLocal()
+            name_change = NameChange(
+                user_id=str(new_user.id),
+                old_name=old_first,
+                new_name=new_first,
+                old_username=old_username,
+                new_username=new_username,
+                changed_at=int(datetime.now().timestamp())
+            )
+            db.add(name_change)
+            db.commit()
+            db.close()
+            # Tạo thông báo
+            msg = f"Shizuku check: Người dùng ID {new_user.id} đã đổi "
+            if old_first != new_first:
+                msg += f"tên: {old_first} -> {new_first}\n"
+            if old_username != new_username:
+                msg += f"username: {old_username} -> {new_username}\n"
+            await client.send_message(event.chat.id, msg)
     except Exception as e:
         print(f"Error in name_change_handler: {e}")
 
