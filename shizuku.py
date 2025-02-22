@@ -278,7 +278,7 @@ async def xinfo_handler(client, message):
                 elif member.status in ["administrator", "creator"]:
                     status = "Admin/Tể tướng"
                 else:
-                    status = "member/Lính Quènnn"
+                    status = "member/thường dân"
             except Exception as e:
                 status = f"Không xác định ({e})"
         else:
@@ -624,7 +624,7 @@ async def xunmute_user(client, message):
     try:
         await client.restrict_chat_member(chat_id, user.id, full_permissions)
         await message.reply(
-            f"🎤 {user.first_name} đã được XUNmute và được cấp lại đầy đủ quyền!\n" +
+            f"🎤 {user.first_name} đã được mở mồm!\n" +
             random.choice(funny_messages).format(name=user.first_name)
         )
     except Exception as e:
