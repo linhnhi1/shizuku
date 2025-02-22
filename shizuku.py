@@ -6,8 +6,6 @@ import subprocess
 import json
 from datetime import datetime
 
-import requests  # Thư viện để gọi API thời tiết
-
 from pyrogram import Client, filters
 from pyrogram.types import ChatPermissions, ChatMemberUpdated, InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -34,7 +32,7 @@ OWNER_IDS = [
 # -------------------------------
 # CÀI ĐẶT DATABASE VỚI SQLALCHEMY
 # -------------------------------
-DATABASE_URL = "sqlite:///data.db"  # File database mới (sẽ được tạo nếu chưa tồn tại)
+DATABASE_URL = "sqlite:///data.db"  # File database (sẽ tự tạo nếu chưa tồn tại)
 engine = create_engine(DATABASE_URL, echo=False)
 Base = declarative_base()
 
@@ -59,7 +57,7 @@ class NameChange(Base):
     new_name = Column(String)
     old_username = Column(String)
     new_username = Column(String)
-    changed_at = Column(Integer)  # lưu timestamp
+    changed_at = Column(Integer)  # timestamp
 
 # Model lưu global ban
 class GlobalBan(Base):
@@ -67,6 +65,12 @@ class GlobalBan(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String, unique=True)
     banned_at = Column(Integer)
+
+# Model lưu filter (từ khoá cấm)
+class FilterItem(Base):
+    __tablename__ = 'filter_items'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    keyword = Column(String, unique=True)
 
 Base.metadata.create_all(engine)
 SessionLocal = sessionmaker(bind=engine)
@@ -213,6 +217,8 @@ async def list_handler(client, message):
         "/xunmute - Unmute người dùng (owner dùng)\n"
         "/fban - Global ban (chỉ ID 5867402532 được dùng)\n"
         "/funban - Global unban (chỉ ID 5867402532 được dùng)\n"
+        "/sft - Thêm từ khoá filter (owner dùng), ví dụ: /sft \"spam word\"\n"
+        "/delete - Xoá từ khoá filter (owner dùng), ví dụ: /delete \"spam word\"\n"
         "shizuku ơi globan ban/unban <ID/username> - Gọi lệnh global ban/unban qua 'shizuku'\n"
         "/list - Hiển thị danh sách lệnh"
     )
@@ -261,7 +267,7 @@ async def report_handler(client, message):
             pass
 
 # -------------------------------
-# Lệnh /xinfo hoặc /kiemtra: Hiển thị thông tin người dùng (plain text)
+# Lệnh /xinfo hoặc /kiemtra: Kiểm tra thông tin người dùng (plain text)
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
@@ -339,7 +345,6 @@ async def fban_user(client, message):
         return
     global_bans.append(user_id)
     save_global_bans_sync(global_bans)
-    # Lưu vào DB (bảng GlobalBan)
     from sqlalchemy.exc import IntegrityError
     db = SessionLocal()
     try:
@@ -466,7 +471,7 @@ async def xban_user(client, message):
         ban_message += f"Thời gian BLOCK: {maybe_time}"
     else:
         ban_message += "BLOCK vĩnh viễn!"
-    await message.reply(ban_message)
+    await message.reply(ban_message, parse_mode="HTML", disable_web_page_preview=True)
     pm_message = (
         f"[Ban Report]\n"
         f"Chat: {message.chat.title if message.chat.title else message.chat.id}\n"
@@ -482,8 +487,10 @@ async def xban_user(client, message):
         await asyncio.sleep(duration_seconds)
         try:
             await client.unban_chat_member(chat_id, user.id)
-            await message.reply(f"✅ {user.first_name} đã được mở BLOCK sau {maybe_time}!\n" +
-                                random.choice(funny_messages).format(name=user.first_name))
+            await message.reply(
+                f"✅ {user.first_name} đã được mở BLOCK sau {maybe_time}!\n" +
+                random.choice(funny_messages).format(name=user.first_name)
+            )
         except Exception as e:
             await message.reply(f"❌ Không thể mở BLOCK! Lỗi: {e}")
 
@@ -526,6 +533,7 @@ async def xmute_user(client, message):
     except Exception:
         await message.reply(random.choice(admin_protection_messages))
         return
+
     duration_seconds = convert_time_to_seconds(maybe_time) if maybe_time else None
     mute_permissions = ChatPermissions(
         can_send_messages=False,
@@ -540,6 +548,7 @@ async def xmute_user(client, message):
     except Exception as e:
         await message.reply(f"❌ Không thể MUTE người dùng! Lỗi: {e}")
         return
+
     mute_message = (
         f"🔇 Đã MUTE người dùng!\n"
         f"ID: {user.id}\n"
@@ -563,6 +572,7 @@ async def xmute_user(client, message):
             await client.send_message(owner, pm_message)
         except Exception:
             pass
+
     if duration_seconds:
         await asyncio.sleep(duration_seconds)
         full_permissions = ChatPermissions(
@@ -575,8 +585,10 @@ async def xmute_user(client, message):
         )
         try:
             await client.restrict_chat_member(chat_id, user.id, full_permissions)
-            await message.reply(f"✅ {user.first_name} đã được mở MUTE sau {maybe_time}!\n" +
-                                random.choice(funny_messages).format(name=user.first_name))
+            await message.reply(
+                f"✅ {user.first_name} đã được mở MUTE sau {maybe_time}!\n" +
+                random.choice(funny_messages).format(name=user.first_name)
+            )
         except Exception as e:
             await message.reply(f"❌ Không thể mở MUTE! Lỗi: {e}")
 
@@ -604,8 +616,10 @@ async def xanxa_user(client, message):
     chat_id = message.chat.id
     try:
         await client.unban_chat_member(chat_id, user.id)
-        await message.reply(f"🕊️ {user.first_name} đã được xóa án Tử!\n" +
-                            random.choice(funny_messages).format(name=user.first_name))
+        await message.reply(
+            f"🕊️ {user.first_name} đã được xóa án Tử!\n" +
+            random.choice(funny_messages).format(name=user.first_name)
+        )
     except Exception as e:
         await message.reply(f"❌ Không thể xóa án ban! Lỗi: {e}")
 
@@ -642,10 +656,88 @@ async def xunmute_user(client, message):
     )
     try:
         await client.restrict_chat_member(chat_id, user.id, full_permissions)
-        await message.reply(f"🎤 {user.first_name} đã được XUNmute và được cấp lại đầy đủ quyền!\n" +
-                            random.choice(funny_messages).format(name=user.first_name))
+        await message.reply(
+            f"🎤 {user.first_name} đã được XUNmute và được cấp lại đầy đủ quyền!\n" +
+            random.choice(funny_messages).format(name=user.first_name)
+        )
     except Exception as e:
         await message.reply(f"❌ Không thể mở mute! Lỗi: {e}")
+
+# -------------------------------
+# Lệnh /sft: Thêm từ khoá filter (chỉ owner dùng)
+# -------------------------------
+@app.on_message(filters.command("sft") & filters.group)
+@owner_only
+async def add_filter(client, message):
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.reply("Vui lòng nhập từ khoá cần filter. Nếu nhiều từ, hãy dùng dấu ngoặc kép.")
+        return
+    keyword = args[1].strip()
+    if keyword.startswith('"') and keyword.endswith('"'):
+        keyword = keyword[1:-1].strip()
+    db = SessionLocal()
+    from sqlalchemy import func
+    exists = db.query(FilterItem).filter(func.lower(FilterItem.keyword) == keyword.lower()).first()
+    if exists:
+        await message.reply("Từ khoá filter này đã tồn tại!")
+        db.close()
+        return
+    new_filter = FilterItem(keyword=keyword)
+    db.add(new_filter)
+    db.commit()
+    db.close()
+    await message.reply(f"Đã thêm từ khoá filter: {keyword}")
+
+# -------------------------------
+# Lệnh /delete: Xoá từ khoá filter (chỉ owner dùng)
+# -------------------------------
+@app.on_message(filters.command("delete") & filters.group)
+@owner_only
+async def delete_filter(client, message):
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.reply("Vui lòng nhập từ khoá filter cần xoá. Nếu nhiều từ, hãy dùng dấu ngoặc kép.")
+        return
+    keyword = args[1].strip()
+    if keyword.startswith('"') and keyword.endswith('"'):
+        keyword = keyword[1:-1].strip()
+    db = SessionLocal()
+    from sqlalchemy import func
+    filter_item = db.query(FilterItem).filter(func.lower(FilterItem.keyword) == keyword.lower()).first()
+    if not filter_item:
+        await message.reply("Không tìm thấy từ khoá filter cần xoá!")
+        db.close()
+        return
+    db.delete(filter_item)
+    db.commit()
+    db.close()
+    await message.reply(f"Đã xoá từ khoá filter: {keyword}")
+
+# -------------------------------
+# Tự động kiểm tra tin nhắn có chứa từ khoá filter (nếu có, xoá tin nhắn)
+# -------------------------------
+@app.on_message(filters.group)
+async def auto_filter(client, message):
+    text_content = ""
+    if message.caption:
+        text_content = message.caption
+    elif message.text:
+        text_content = message.text
+    else:
+        return
+    if not text_content:
+        return
+    db = SessionLocal()
+    filter_items = db.query(FilterItem).all()
+    db.close()
+    for f in filter_items:
+        if f.keyword.lower() in text_content.lower():
+            try:
+                await message.delete()
+            except Exception as e:
+                print("Error deleting filtered message:", e)
+            break
 
 # -------------------------------
 # Lệnh “shizuku”: Chuyển đổi lệnh (ban, mute, unban, unmute, globan ban/unban)
@@ -782,59 +874,79 @@ async def member_left_handler(client, event: ChatMemberUpdated):
             await client.send_message(chat_id, farewell_message)
 
 # -------------------------------
-# Lệnh /xtt: Xem thời tiết chi tiết ở tỉnh và huyện
-# Cú pháp: /xtt (tên tỉnh) (tên huyện)
+# CHỨC NĂNG FILTER:
+# Lệnh /sft: Thêm từ khoá filter (chỉ owner dùng)
+# Lệnh /delete: Xoá từ khoá filter (chỉ owner dùng)
+# Tự động xoá tin nhắn có chứa từ khoá filter (nếu tin nhắn có caption hoặc text)
 # -------------------------------
-@app.on_message(filters.command("xtt") & (filters.group | filters.private))
-async def weather_handler(client, message):
-    args = message.text.split(maxsplit=2)
-    if len(args) < 3:
-        await message.reply("Vui lòng nhập đầy đủ: /xtt (tên tỉnh) (tên huyện)")
+# Model FilterItem đã được khai báo phía trên
+
+@app.on_message(filters.command("sft") & filters.group)
+@owner_only
+async def add_filter(client, message):
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.reply("Vui lòng nhập từ khoá cần filter. Nếu nhiều từ, hãy dùng dấu ngoặc kép.")
         return
-    province = args[1]
-    district = args[2]
-    # Tạo chuỗi địa danh với tên huyện, tỉnh, VN
-    location = f"{district}, {province}, VN"
-    # Tăng limit lên 100
-    GEOCODE_URL = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=100&appid=4dfb839e638b6f0ea1b7fe4444940519"
-    await message.reply(f"Đang tìm tọa độ cho: {location}")
-    
-    try:
-        geo_response = requests.get(GEOCODE_URL)
-        if geo_response.status_code != 200:
-            await message.reply(f"Không thể lấy tọa độ. Mã lỗi: {geo_response.status_code}")
-            return
-        geo_data = geo_response.json()
-        print("Geo Data:", geo_data)  # Debug: in kết quả trả về
-        if not geo_data:
-            await message.reply("Không tìm thấy tọa độ cho địa điểm này. Vui lòng kiểm tra lại tên tỉnh/huyện (có thể dùng chữ không dấu).")
-            return
-        # Chọn kết quả đầu tiên (hoặc bạn có thể tùy chọn nâng cao)
-        lat = geo_data[0].get("lat")
-        lon = geo_data[0].get("lon")
-        await message.reply(f"Tọa độ: lat={lat}, lon={lon}")
-        
-        WEATHER_URL = f"https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&exclude=minutely,hourly,alerts&appid=4dfb839e638b6f0ea1b7fe4444940519&units=metric&lang=vi"
-        weather_response = requests.get(WEATHER_URL)
-        if weather_response.status_code != 200:
-            await message.reply(f"Không thể lấy thông tin thời tiết. Mã lỗi: {weather_response.status_code}")
-            return
-        weather_data = weather_response.json()
-        current = weather_data.get("current", {})
-        temp = current.get("temp", "Không có")
-        weather_desc = current.get("weather", [{}])[0].get("description", "Không có")
-        humidity = current.get("humidity", "Không có")
-        wind_speed = current.get("wind_speed", "Không có")
-        reply_text = (
-            f"Thời tiết tại {district}, {province}:\n"
-            f"Nhiệt độ: {temp}°C\n"
-            f"Trạng thái: {weather_desc}\n"
-            f"Độ ẩm: {humidity}%\n"
-            f"Tốc độ gió: {wind_speed} m/s"
-        )
-        await message.reply(reply_text)
-    except Exception as e:
-        await message.reply(f"Lỗi khi lấy thông tin thời tiết: {e}")
+    keyword = args[1].strip()
+    if keyword.startswith('"') and keyword.endswith('"'):
+        keyword = keyword[1:-1].strip()
+    db = SessionLocal()
+    from sqlalchemy import func
+    exists = db.query(FilterItem).filter(func.lower(FilterItem.keyword) == keyword.lower()).first()
+    if exists:
+        await message.reply("Từ khoá filter này đã tồn tại!")
+        db.close()
+        return
+    new_filter = FilterItem(keyword=keyword)
+    db.add(new_filter)
+    db.commit()
+    db.close()
+    await message.reply(f"Đã thêm từ khoá filter: {keyword}")
+
+@app.on_message(filters.command("delete") & filters.group)
+@owner_only
+async def delete_filter(client, message):
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.reply("Vui lòng nhập từ khoá filter cần xoá. Nếu nhiều từ, hãy dùng dấu ngoặc kép.")
+        return
+    keyword = args[1].strip()
+    if keyword.startswith('"') and keyword.endswith('"'):
+        keyword = keyword[1:-1].strip()
+    db = SessionLocal()
+    from sqlalchemy import func
+    filter_item = db.query(FilterItem).filter(func.lower(FilterItem.keyword) == keyword.lower()).first()
+    if not filter_item:
+        await message.reply("Không tìm thấy từ khoá filter cần xoá!")
+        db.close()
+        return
+    db.delete(filter_item)
+    db.commit()
+    db.close()
+    await message.reply(f"Đã xoá từ khoá filter: {keyword}")
+
+@app.on_message(filters.group)
+async def auto_filter(client, message):
+    text_content = ""
+    if message.caption:
+        text_content = message.caption
+    elif message.text:
+        text_content = message.text
+    else:
+        return
+    if not text_content:
+        return
+    db = SessionLocal()
+    filter_items = db.query(FilterItem).all()
+    db.close()
+    for f in filter_items:
+        if f.keyword.lower() in text_content.lower():
+            try:
+                await message.delete()
+            except Exception as e:
+                print("Error deleting filtered message:", e)
+            break
 
 # -------------------------------
 # CHẠY BOT
