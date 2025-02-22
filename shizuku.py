@@ -33,7 +33,7 @@ OWNER_IDS = [
 # -------------------------------
 # CÀI ĐẶT DATABASE VỚI SQLALCHEMY
 # -------------------------------
-DATABASE_URL = "sqlite:///data.db"  # File database sẽ tự tạo nếu chưa tồn tại
+DATABASE_URL = "sqlite:///data.db"  # File DB sẽ tự tạo nếu chưa tồn tại
 engine = create_engine(DATABASE_URL, echo=False)
 Base = declarative_base()
 
@@ -45,7 +45,7 @@ class User(Base):
     last_name = Column(String)
     username = Column(String)
     joined = Column(Integer)
-
+    
     def __repr__(self):
         return f"<User(user_id={self.user_id}, first_name={self.first_name})>"
 
@@ -58,7 +58,7 @@ class NameChange(Base):
     new_name = Column(String)
     old_username = Column(String)
     new_username = Column(String)
-    changed_at = Column(Integer)  # lưu timestamp
+    changed_at = Column(Integer)  # timestamp
 
 # Model lưu global ban
 class GlobalBan(Base):
@@ -67,11 +67,11 @@ class GlobalBan(Base):
     user_id = Column(String, unique=True)
     banned_at = Column(Integer)
 
-# Model lưu filter (mỗi filter bao gồm trigger và response)
+# Model lưu filter (trigger & response)
 class FilterItem(Base):
     __tablename__ = 'filter_items'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    trigger = Column(String, unique=True)  # trigger sẽ được lưu dưới dạng regex (nếu cần)
+    trigger = Column(String, unique=True)
     response = Column(String)
 
 Base.metadata.create_all(engine)
@@ -220,9 +220,9 @@ async def list_handler(client, message):
         "/fban - Global ban (chỉ ID 5867402532 dùng)\n"
         "/funban - Global unban (chỉ ID 5867402532 dùng)\n"
         "/sft - Thêm filter: /sft \"trigger\" \"response\"\n"
-        "/sfts - Liệt kê các filter đã thêm\n"
+        "/sfts - Liệt kê các filter\n"
         "/delete - Xoá filter: /delete \"trigger\"\n"
-        "/stopall - Xoá tất cả filter trong nhóm\n"
+        "/stopall - Xoá tất cả filter\n"
         "shizuku ơi globan ban/unban <ID/username> - Gọi lệnh global ban/unban qua 'shizuku'\n"
         "/list - Hiển thị danh sách lệnh"
     )
@@ -475,7 +475,7 @@ async def xban_user(client, message):
         ban_message += f"Thời gian BLOCK: {maybe_time}"
     else:
         ban_message += "BLOCK vĩnh viễn!"
-    await message.reply(ban_message)
+    await message.reply(ban_message, parse_mode="HTML", disable_web_page_preview=True)
     pm_message = (
         f"[Ban Report]\n"
         f"Chat: {message.chat.title if message.chat.title else message.chat.id}\n"
@@ -491,8 +491,10 @@ async def xban_user(client, message):
         await asyncio.sleep(duration_seconds)
         try:
             await client.unban_chat_member(chat_id, user.id)
-            await message.reply(f"✅ {user.first_name} đã được mở BLOCK sau {maybe_time}!\n" +
-                                random.choice(funny_messages).format(name=user.first_name))
+            await message.reply(
+                f"✅ {user.first_name} đã được mở BLOCK sau {maybe_time}!\n" +
+                random.choice(funny_messages).format(name=user.first_name)
+            )
         except Exception as e:
             await message.reply(f"❌ Không thể mở BLOCK! Lỗi: {e}")
 
@@ -565,8 +567,7 @@ async def xmute_user(client, message):
         mute_message += "MUTE vĩnh viễn!"
     await message.reply(mute_message)
     pm_message = (
-        f"[Mute Report]\n"
-        f"Chat: {message.chat.title if message.chat.title else message.chat.id}\n"
+        f"[Mute Report]\nChat: {message.chat.title if message.chat.title else message.chat.id}\n"
         f"User: {user.first_name} {user.last_name if user.last_name else ''} (ID: {user.id}, Username: {'@' + user.username if user.username else 'Không có'})\n"
         f"Lý do: {reason}"
     )
@@ -588,8 +589,10 @@ async def xmute_user(client, message):
         )
         try:
             await client.restrict_chat_member(chat_id, user.id, full_permissions)
-            await message.reply(f"✅ {user.first_name} đã được mở MUTE sau {maybe_time}!\n" +
-                                random.choice(funny_messages).format(name=user.first_name))
+            await message.reply(
+                f"✅ {user.first_name} đã được mở MUTE sau {maybe_time}!\n" +
+                random.choice(funny_messages).format(name=user.first_name)
+            )
         except Exception as e:
             await message.reply(f"❌ Không thể mở MUTE! Lỗi: {e}")
 
@@ -617,8 +620,10 @@ async def xanxa_user(client, message):
     chat_id = message.chat.id
     try:
         await client.unban_chat_member(chat_id, user.id)
-        await message.reply(f"🕊️ {user.first_name} đã được xóa án Tử!\n" +
-                            random.choice(funny_messages).format(name=user.first_name))
+        await message.reply(
+            f"🕊️ {user.first_name} đã được xóa án Tử!\n" +
+            random.choice(funny_messages).format(name=user.first_name)
+        )
     except Exception as e:
         await message.reply(f"❌ Không thể xóa án ban! Lỗi: {e}")
 
@@ -655,55 +660,57 @@ async def xunmute_user(client, message):
     )
     try:
         await client.restrict_chat_member(chat_id, user.id, full_permissions)
-        await message.reply(f"🎤 {user.first_name} đã được XUNmute và được cấp lại đầy đủ quyền!\n" +
-                            random.choice(funny_messages).format(name=user.first_name))
+        await message.reply(
+            f"🎤 {user.first_name} đã được XUNmute và được cấp lại đầy đủ quyền!\n" +
+            random.choice(funny_messages).format(name=user.first_name)
+        )
     except Exception as e:
         await message.reply(f"❌ Không thể mở mute! Lỗi: {e}")
 
 # -------------------------------
 # Lệnh “shizuku”: Chuyển đổi lệnh (ban, mute, unban, unmute, globan ban/unban)
 # -------------------------------
-@app.on_message(filters.regex(r"(?i)^shizuku(,| ơi)"))
+@app.on_message(filters.regex(r"^(?i)shizuku(?:\s*(?:ơi)?\s+)(.+)"))
 async def shizuku_handler(client, message):
     if message.from_user.id not in OWNER_IDS:
         await message.reply("🚫 Bạn không có quyền sử dụng lệnh này.")
         return
-    text = message.text.strip()
-    if text.lower().startswith("shizuku ơi"):
-        trigger_len = len("shizuku ơi")
-    elif text.lower().startswith("shizuku,"):
-        trigger_len = len("shizuku,")
-    else:
-        trigger_len = len("shizuku")
-    command_text = text[trigger_len:].strip()
+    command_text = message.matches[0].group(1).strip()
     if not command_text:
         await message.reply(
             "Bạn có thể dùng:\n"
-            "shizuku ơi ban/block <ID/username> [thời gian] [lý do]\n"
-            "shizuku ơi mute <ID/username> [thời gian] [lý do]\n"
-            "shizuku ơi unban <ID/username>\n"
-            "shizuku ơi unmute/ummute <ID/username>\n"
-            "shizuku ơi globan ban <ID/username> (global ban chỉ ID 5867402532)\n"
-            "shizuku ơi globan unban <ID/username> (global unban chỉ ID 5867402532)\n"
+            "shizuku [ơi] ban <ID/username> [thời gian] [lý do]\n"
+            "shizuku [ơi] mute <ID/username> [thời gian] [lý do]\n"
+            "shizuku [ơi] unban <ID/username>\n"
+            "shizuku [ơi] unmute/ummute <ID/username>\n"
+            "shizuku [ơi] globan ban <ID/username> (global ban chỉ ID 5867402532)\n"
+            "shizuku [ơi] globan unban <ID/username> (global unban chỉ ID 5867402532)\n"
             "shizuku, bạn được ai tạo ra?"
         )
         return
     parts = command_text.split()
     cmd = parts[0].lower()
-    if "globan ban" in command_text.lower():
-        if message.from_user.id != 5867402532:
-            await message.reply("🚫 Bạn không có quyền sử dụng lệnh global ban này!")
+    if cmd == "globan":
+        if len(parts) < 2:
+            await message.reply("Vui lòng cung cấp lệnh sau 'globan': ban hoặc unban.")
             return
-        new_text = "/fban " + " ".join(parts[2:]) if len(parts) > 2 else "/fban"
-        message.text = new_text
-        await fban_user(client, message)
-    elif "globan unban" in command_text.lower():
-        if message.from_user.id != 5867402532:
-            await message.reply("🚫 Bạn không có quyền sử dụng lệnh global unban này!")
-            return
-        new_text = "/funban " + " ".join(parts[2:]) if len(parts) > 2 else "/funban"
-        message.text = new_text
-        await funban_user(client, message)
+        sub_cmd = parts[1].lower()
+        if sub_cmd == "ban":
+            if message.from_user.id != 5867402532:
+                await message.reply("🚫 Bạn không có quyền sử dụng lệnh global ban này!")
+                return
+            new_text = "/fban " + " ".join(parts[2:]) if len(parts) > 2 else "/fban"
+            message.text = new_text
+            await fban_user(client, message)
+        elif sub_cmd == "unban":
+            if message.from_user.id != 5867402532:
+                await message.reply("🚫 Bạn không có quyền sử dụng lệnh global unban này!")
+                return
+            new_text = "/funban " + " ".join(parts[2:]) if len(parts) > 2 else "/funban"
+            message.text = new_text
+            await funban_user(client, message)
+        else:
+            await message.reply("Lệnh global không hợp lệ. Chỉ hỗ trợ: globan ban hoặc globan unban.")
     elif cmd in ["ban", "block"]:
         new_text = "/xban " + " ".join(parts[1:])
         message.text = new_text
@@ -721,9 +728,9 @@ async def shizuku_handler(client, message):
         message.text = new_text
         await xunmute_user(client, message)
     elif "được ai tạo ra" in command_text.lower():
-        await message.reply("Tôi được @OverFlowVIP và (Chat GPT plus) tạo ra🐶")
+        await message.reply("Tôi được OverFlowVIP và Chat GPT plus tạo ra.")
     else:
-        await message.reply("Lệnh không hợp lệ. Bạn có thể dùng: ban/block, mute, unban, unmute, globan ban/unban, hoặc 'shizuku, bạn được ai tạo ra'.")
+        await message.reply("Lệnh không hợp lệ. Các lệnh hỗ trợ: ban, mute, unban, unmute, globan ban, globan unban, hoặc 'shizuku, được ai tạo ra'.")
 
 # -------------------------------
 # THÊM: TỰ ĐỘNG PHÁT HIỆN VÀ THÔNG BÁO ĐỔI TÊN/USERNAME
@@ -745,15 +752,15 @@ async def name_change_handler(client, event: ChatMemberUpdated):
         if old_first == new_first and old_last == new_last and old_username == new_username:
             return
         msg = (
-            f"Shizuku check🪪:\n"
+            "Shizuku check🪪:\n"
             f"ID: {new_user.id} đã đổi thông tin✍️\n"
-            f"🐮 Họ cũ: {old_last}\n"
-            f"🐶 Tên cũ: {old_first}\n"
-            f"🐒 Username cũ: {('@' + old_username) if old_username != 'Không có' else old_username}\n"
+            f"Họ cũ: {old_last}\n"
+            f"Tên cũ: {old_first}\n"
+            f"Username cũ: {('@' + old_username) if old_username != 'Không có' else old_username}\n"
             "------------------\n"
-            f"👤 Họ mới: {new_last}\n"
-            f"🐱 Tên mới: {new_first}\n"
-            f"🐳 Username mới: {('@' + new_username) if new_username != 'Không có' else new_username}"
+            f"Họ mới: {new_last}\n"
+            f"Tên mới: {new_first}\n"
+            f"Username mới: {('@' + new_username) if new_username != 'Không có' else new_username}"
         )
         await client.send_message(event.chat.id, msg)
         save_user_orm(event.chat.id, new_user, int(datetime.now().timestamp()))
@@ -793,18 +800,17 @@ async def member_left_handler(client, event: ChatMemberUpdated):
 
 # -------------------------------
 # CHỨC NĂNG FILTER:
-# - /sft <trigger> <response>: Thêm filter (nếu có khoảng trắng, hãy đặt trong dấu ngoặc kép)
-# - /sfts: Liệt kê tất cả các filter
-# - /delete <trigger>: Xoá filter với trigger cụ thể
-# - /stopall: Xoá tất cả các filter
-# Các lệnh này chỉ cho phép owner sử dụng.
-# Bot sẽ tự động kiểm tra tin nhắn (text hoặc caption) và nếu khớp với trigger (sử dụng regex) thì trả lời với response.
+# - /sft "trigger" "response": Thêm filter (chỉ owner dùng)
+# - /sfts: Liệt kê tất cả các filter đã thêm (chỉ owner dùng)
+# - /delete "trigger": Xoá filter với trigger cụ thể (chỉ owner dùng)
+# - /stopall: Xoá tất cả các filter (chỉ owner dùng)
+# Bot sẽ tự động kiểm tra tin nhắn (text hoặc caption) và nếu khớp với trigger (theo regex) thì trả lời với response.
 # -------------------------------
 @app.on_message(filters.command("sft") & filters.group)
 @owner_only
 async def add_filter(client, message):
     text = message.text
-    # Sử dụng regex để lấy trigger và response trong dấu ngoặc kép
+    # Cú pháp: /sft "trigger" "response"
     pattern = r'/sft\s+"([^"]+)"\s+"([^"]+)"'
     match = re.search(pattern, text)
     if match:
@@ -873,7 +879,7 @@ async def stopall_filters(client, message):
     db.close()
     await message.reply(f"Đã xoá tất cả {num} filter.")
 
-# Tự động kiểm tra tin nhắn có chứa filter trigger (sử dụng regex)
+# Tự động kiểm tra tin nhắn chứa filter trigger (sử dụng regex)
 @app.on_message(filters.group)
 async def auto_filter(client, message):
     text_content = ""
