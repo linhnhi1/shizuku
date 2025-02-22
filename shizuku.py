@@ -261,7 +261,7 @@ async def report_handler(client, message):
             pass
 
 # -------------------------------
-# Lệnh /xinfo hoặc /kiemtra: Hiển thị THẺ THÔNG HÀNH của người dùng (plain text)
+# Lệnh /xinfo hoặc /kiemtra: Hiển thị thông tin người dùng (plain text)
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
@@ -714,7 +714,7 @@ async def shizuku_handler(client, message):
 
 # -------------------------------
 # THÊM: TỰ ĐỘNG PHÁT HIỆN VÀ THÔNG BÁO ĐỔI TÊN/USERNAME
-# Khi người dùng đổi tên hoặc username, bot sẽ thông báo và lưu lại thông tin mới vào DB.
+# Khi người dùng đổi tên hoặc username, bot sẽ gửi thông báo và lưu lại thông tin mới vào DB.
 # -------------------------------
 @app.on_chat_member_updated()
 async def name_change_handler(client, event: ChatMemberUpdated):
@@ -746,7 +746,6 @@ async def name_change_handler(client, event: ChatMemberUpdated):
             f"🐳 Username mới: {('@' + new_username) if new_username != 'Không có' else new_username}"
         )
         await client.send_message(event.chat.id, msg)
-        # Cập nhật thông tin mới vào DB
         save_user_orm(event.chat.id, new_user, int(datetime.now().timestamp()))
     except Exception as e:
         print(f"Error in name_change_handler: {e}")
@@ -794,21 +793,27 @@ async def weather_handler(client, message):
         return
     province = args[1]
     district = args[2]
-    # Sử dụng OpenWeatherMap Geocoding API để chuyển đổi từ địa danh thành tọa độ
+    # Tạo chuỗi địa danh với tên huyện, tỉnh, VN
     location = f"{district}, {province}, VN"
-    GEOCODE_URL = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=1&appid=4dfb839e638b6f0ea1b7fe4444940519"
+    # Tăng limit lên 100
+    GEOCODE_URL = f"http://api.openweathermap.org/geo/1.0/direct?q={location}&limit=100&appid=4dfb839e638b6f0ea1b7fe4444940519"
+    await message.reply(f"Đang tìm tọa độ cho: {location}")
+    
     try:
         geo_response = requests.get(GEOCODE_URL)
         if geo_response.status_code != 200:
-            await message.reply(f"Không thể lấy tọa độ địa điểm. Mã lỗi: {geo_response.status_code}")
+            await message.reply(f"Không thể lấy tọa độ. Mã lỗi: {geo_response.status_code}")
             return
         geo_data = geo_response.json()
+        print("Geo Data:", geo_data)  # Debug: in kết quả trả về
         if not geo_data:
-            await message.reply("Không tìm thấy tọa độ cho địa điểm này. Vui lòng kiểm tra lại tên tỉnh/huyện.")
+            await message.reply("Không tìm thấy tọa độ cho địa điểm này. Vui lòng kiểm tra lại tên tỉnh/huyện (có thể dùng chữ không dấu).")
             return
+        # Chọn kết quả đầu tiên (hoặc bạn có thể tùy chọn nâng cao)
         lat = geo_data[0].get("lat")
         lon = geo_data[0].get("lon")
-        # Gọi One Call API để lấy thông tin thời tiết chi tiết
+        await message.reply(f"Tọa độ: lat={lat}, lon={lon}")
+        
         WEATHER_URL = f"https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&exclude=minutely,hourly,alerts&appid=4dfb839e638b6f0ea1b7fe4444940519&units=metric&lang=vi"
         weather_response = requests.get(WEATHER_URL)
         if weather_response.status_code != 200:
