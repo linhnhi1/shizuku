@@ -29,7 +29,7 @@ OWNER_IDS = [5867402532, 6370114941, 6922955912, 5161512205, 1906855234, 6247748
 # -------------------------------
 # CÀI ĐẶT DATABASE VỚI SQLALCHEMY
 # -------------------------------
-DATABASE_URL = "sqlite:///data.db"  # File database mới (tự tạo nếu chưa tồn tại)
+DATABASE_URL = "sqlite:///data.db"  # File database mới (sẽ được tạo nếu chưa tồn tại)
 engine = create_engine(DATABASE_URL, echo=False)
 Base = declarative_base()
 
@@ -45,7 +45,7 @@ class User(Base):
     def __repr__(self):
         return f"<User(user_id={self.user_id}, first_name={self.first_name})>"
 
-# Model lưu lịch sử đổi tên/username (nếu cần lưu lịch sử riêng)
+# Model lưu lịch sử đổi tên/username
 class NameChange(Base):
     __tablename__ = 'name_changes'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -54,7 +54,14 @@ class NameChange(Base):
     new_name = Column(String)
     old_username = Column(String)
     new_username = Column(String)
-    changed_at = Column(Integer)  # lưu timestamp
+    changed_at = Column(Integer)  # timestamp
+
+# Model lưu thông tin global ban
+class GlobalBan(Base):
+    __tablename__ = 'global_bans'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String, unique=True)
+    banned_at = Column(Integer)  # timestamp
 
 Base.metadata.create_all(engine)
 SessionLocal = sessionmaker(bind=engine)
@@ -200,8 +207,8 @@ async def dongbo_handler(client, message):
 @app.on_message(filters.command("list") & (filters.group | filters.private))
 async def list_handler(client, message):
     commands = (
-        "Tau không muốn chào đâu nhưng dev bắt tau chào đấy🐶\n"
-        "Danh sách lệnh bên dưới:\n\n"
+        "Tau không muốn chào đâu nhưng dev bắt tau chào đấy🐶<br>"
+        "Danh sách lệnh bên dưới:<br><br>"
         "/batdau - Chào mừng người dùng<br>"
         "/report - Báo cáo tin nhắn cần report (reply tin cần báo cáo)<br>"
         "/xinfo hoặc /kiemtra - Kiểm tra thông tin người dùng tại nhóm (trạng thái thật)<br>"
@@ -272,12 +279,10 @@ async def xinfo_handler(client, message):
         else:
             args = message.text.split(maxsplit=1)
             if len(args) >= 2:
-                # Nếu tham số là ID (chỉ số) hoặc username (chuỗi)
                 query = args[1].strip()
                 if query.startswith("@"):
                     query = query[1:]
                 try:
-                    # Thử chuyển sang số, nếu thành công thì coi là ID
                     query_int = int(query)
                     target = await client.get_users(query_int)
                 except ValueError:
@@ -318,7 +323,7 @@ async def xinfo_handler(client, message):
         await message.reply(f"❌ Đã xảy ra lỗi: {ex}")
 
 # -------------------------------
-# Lệnh /fban: Global ban (chỉ ID 5867402532 được dùng)
+# Lệnh /fban: Global ban (chỉ ID 5867402532 được dùng) và lưu vào DB
 # -------------------------------
 @app.on_message(filters.command("fban") & filters.group)
 async def fban_user(client, message):
@@ -326,22 +331,32 @@ async def fban_user(client, message):
         await message.reply("Bạn không có quyền sử dụng lệnh này!")
         return
     if message.reply_to_message:
-        user_id = message.reply_to_message.from_user.id
+        target = message.reply_to_message.from_user
     else:
         parts = message.text.split()
         if len(parts) < 2:
             await message.reply("Vui lòng cung cấp User ID hoặc reply tin nhắn cần global ban.")
             return
         try:
-            user_id = int(parts[1])
+            target = await client.get_users(int(parts[1]))
         except ValueError:
             await message.reply("User ID không hợp lệ.")
             return
+    user_id = target.id
     if user_id in global_bans:
         await message.reply("Người dùng này đã nằm trong danh sách global ban.")
         return
     global_bans.append(user_id)
     save_global_bans_sync(global_bans)
+    # Lưu vào DB (bảng GlobalBan)
+    db = SessionLocal()
+    from sqlalchemy import func
+    exists = db.query(GlobalBan).filter_by(user_id=str(user_id)).first()
+    if not exists:
+        new_global_ban = GlobalBan(user_id=str(user_id), banned_at=int(datetime.now().timestamp()))
+        db.add(new_global_ban)
+        db.commit()
+    db.close()
     await message.reply(f"✅ Global ban đã được áp dụng cho user ID {user_id}. Đang ban ở các nhóm...")
     dialogs = [d.chat for d in await client.get_dialogs()]
     count = 0
@@ -355,7 +370,7 @@ async def fban_user(client, message):
     await message.reply(f"✅ Đã thực hiện global ban ở {count} nhóm.")
 
 # -------------------------------
-# Lệnh /funban: Global unban (chỉ ID 5867402532 được dùng)
+# Lệnh /funban: Global unban (chỉ ID 5867402532 được dùng) và xóa khỏi DB
 # -------------------------------
 @app.on_message(filters.command("funban") & filters.group)
 async def funban_user(client, message):
@@ -363,22 +378,30 @@ async def funban_user(client, message):
         await message.reply("Bạn không có quyền sử dụng lệnh này!")
         return
     if message.reply_to_message:
-        user_id = message.reply_to_message.from_user.id
+        target = message.reply_to_message.from_user
     else:
         parts = message.text.split()
         if len(parts) < 2:
             await message.reply("Vui lòng cung cấp User ID hoặc reply tin nhắn cần gỡ global ban.")
             return
         try:
-            user_id = int(parts[1])
+            target = await client.get_users(int(parts[1]))
         except ValueError:
             await message.reply("User ID không hợp lệ.")
             return
+    user_id = target.id
     if user_id not in global_bans:
         await message.reply("Người dùng này không nằm trong danh sách global ban.")
         return
     global_bans.remove(user_id)
     save_global_bans_sync(global_bans)
+    # Xóa khỏi DB (bảng GlobalBan)
+    db = SessionLocal()
+    record = db.query(GlobalBan).filter_by(user_id=str(user_id)).first()
+    if record:
+        db.delete(record)
+        db.commit()
+    db.close()
     await message.reply(f"✅ Global ban đã được gỡ cho user ID {user_id}. Đang unban ở các nhóm...")
     dialogs = [d.chat for d in await client.get_dialogs()]
     count = 0
@@ -647,13 +670,13 @@ async def shizuku_handler(client, message):
         trigger_len = len("shizuku")
     command_text = text[trigger_len:].strip()
     if not command_text:
-        await message.reply("Bạn có thể dùng:\n"
-                            "shizuku ơi ban/block <ID/username> [thời gian] [lý do]\n"
-                            "shizuku ơi mute <ID/username> [thời gian] [lý do]\n"
-                            "shizuku ơi unban <ID/username>\n"
-                            "shizuku ơi unmute/ummute <ID/username>\n"
-                            "shizuku ơi globan ban <ID/username> (global ban chỉ ID 5867402532)\n"
-                            "shizuku ơi globan unban <ID/username> (global unban chỉ ID 5867402532)\n"
+        await message.reply("Bạn có thể dùng:<br>"
+                            "shizuku ơi ban/block <ID/username> [thời gian] [lý do]<br>"
+                            "shizuku ơi mute <ID/username> [thời gian] [lý do]<br>"
+                            "shizuku ơi unban <ID/username><br>"
+                            "shizuku ơi unmute/ummute <ID/username><br>"
+                            "shizuku ơi globan ban <ID/username> (global ban chỉ ID 5867402532)<br>"
+                            "shizuku ơi globan unban <ID/username> (global unban chỉ ID 5867402532)<br>"
                             "shizuku, bạn được ai tạo ra?")
         return
     parts = command_text.split()
@@ -705,14 +728,13 @@ async def name_change_handler(client, event: ChatMemberUpdated):
         # Chỉ xử lý nếu cùng một user
         if old_user.id != new_user.id:
             return
-        # Lấy thông tin cũ và mới
         old_first = old_user.first_name or "Không có"
         new_first = new_user.first_name or "Không có"
         old_last = old_user.last_name or "Không có"
         new_last = new_user.last_name or "Không có"
         old_username = old_user.username or "Không có"
         new_username = new_user.username or "Không có"
-        # Nếu không có thay đổi thì không thông báo
+        # Nếu không có thay đổi, thoát
         if old_first == new_first and old_last == new_last and old_username == new_username:
             return
         # Tạo thông báo theo định dạng yêu cầu
@@ -727,7 +749,6 @@ async def name_change_handler(client, event: ChatMemberUpdated):
             f"🐱 Tên mới: {new_first}<br>"
             f"🐳 Username mới: {'@' + new_username if new_username != 'Không có' else new_username}"
         )
-        # Gửi thông báo lên nhóm
         await client.send_message(event.chat.id, msg, parse_mode="HTML")
         # Cập nhật thông tin người dùng vào DB
         save_user_orm(event.chat.id, new_user, int(datetime.now().timestamp()))
