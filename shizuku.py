@@ -24,12 +24,12 @@ API_HASH = "a614a27fc39c3e54bf2e15da2a971e78"
 BOT_TOKEN = "7573169920:AAFLHoWTkCQJLTyCqn9fpwMk_3iXm2FHiAc"
 
 # Danh sách các owner (đã thêm ID 7021845241)
-OWNER_IDS = [5867402532, 6370114941, 6922955912, 5161512205,
-    1906855234, 6247748448, 1829150726, 7021845241]
+OWNER_IDS = [5867402532, 6370114941, 6922955912, 5161512205, 1906855234, 6247748448, 1829150726, 7021845241]
 
 # -------------------------------
 # CÀI ĐẶT DATABASE VỚI SQLALCHEMY
 # -------------------------------
+
 DATABASE_URL = "sqlite:///data.db"  # File database mới (tự tạo nếu chưa tồn tại)
 engine = create_engine(DATABASE_URL, echo=False)
 Base = declarative_base()
