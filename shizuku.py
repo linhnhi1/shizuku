@@ -256,20 +256,20 @@ async def report_handler(client, message):
         message_link = f"https://t.me/c/{chat_link_id}/{reported_msg.message_id}"
     reported_fullname = reported_user.first_name + ((" " + reported_user.last_name) if reported_user.last_name else "")
     report_details = (
-        f"📝 Báo cáo từ: {reporter_fullname} (ID: {reporter.id})\n"
+        f"📝 Báo cáo từ: {reporter_fullname} (ID: {reporter.id})<br>"
         f"👤 Người bị báo cáo: {reported_fullname} (ID: {reported_user.id}, Username: "
-        f"{'@' + reported_user.username if reported_user.username else 'Không có'})\n"
-        f"💬 Nội dung: {reported_msg.text if reported_msg.text else '[Không có nội dung]'}\n"
+        f"{'@' + reported_user.username if reported_user.username else 'Không có'})<br>"
+        f"💬 Nội dung: {reported_msg.text if reported_msg.text else '[Không có nội dung]'}<br>"
         f"🔗 Link: {message_link}"
     )
     for owner in OWNER_IDS:
         try:
-            await client.send_message(owner, report_details)
+            await client.send_message(owner, report_details, parse_mode="html")
         except Exception:
             pass
 
 # -------------------------------
-# Lệnh /xinfo hoặc /kiemtra: Hiển thị THẺ THÔNG HÀNH của người dùng (sử dụng HTML)
+# Lệnh /xinfo hoặc /kiemtra: Hiển thị THẺ THÔNG HÀNH của người dùng (sử dụng html)
 # -------------------------------
 @app.on_message(filters.command(["xinfo", "kiemtra"]) & (filters.group | filters.private))
 async def xinfo_handler(client, message):
@@ -318,7 +318,7 @@ async def xinfo_handler(client, message):
             f"📍 <b>Địa Chỉ:</b> <a href=\"{user_link}\">{first_name}</a><br>"
             f"✨ <b>Trạng thái:</b> {status}<br>"
         )
-        await message.reply(info, parse_mode="HTML", disable_web_page_preview=True)
+        await message.reply(info, parse_mode="html", disable_web_page_preview=True)
     except Exception as ex:
         await message.reply(f"❌ Đã xảy ra lỗi: {ex}")
 
@@ -350,7 +350,6 @@ async def fban_user(client, message):
     save_global_bans_sync(global_bans)
     # Lưu vào DB (bảng GlobalBan)
     db = SessionLocal()
-    from sqlalchemy import func
     exists = db.query(GlobalBan).filter_by(user_id=str(user_id)).first()
     if not exists:
         new_global_ban = GlobalBan(user_id=str(user_id), banned_at=int(datetime.now().timestamp()))
@@ -471,7 +470,7 @@ async def xban_user(client, message):
         ban_message += f"⏳ <b>Thời gian BLOCK:</b> {maybe_time}"
     else:
         ban_message += "🚷 <b>BLOCK vĩnh viễn!</b>"
-    await message.reply(ban_message, parse_mode="HTML", disable_web_page_preview=True)
+    await message.reply(ban_message, parse_mode="html", disable_web_page_preview=True)
     pm_message = (
         f"[Ban Report]\nChat: {message.chat.title if message.chat.title else message.chat.id}\n"
         f"User: {user.first_name} {user.last_name if user.last_name else ''} (ID: {user.id}, Username: "
@@ -488,7 +487,7 @@ async def xban_user(client, message):
         try:
             await client.unban_chat_member(chat_id, user.id)
             await message.reply(f"✅ <b>{user.first_name}</b> đã được mở BLOCK sau {maybe_time}!<br>" +
-                                random.choice(funny_messages).format(name=user.first_name), parse_mode="HTML")
+                                random.choice(funny_messages).format(name=user.first_name), parse_mode="html")
         except Exception as e:
             await message.reply(f"❌ Không thể mở BLOCK! Lỗi: {e}")
 
@@ -557,7 +556,7 @@ async def xmute_user(client, message):
         mute_message += f"⏳ <b>Thời gian MUTE:</b> {maybe_time}"
     else:
         mute_message += "🔕 <b>MUTE vĩnh viễn!</b>"
-    await message.reply(mute_message, parse_mode="HTML", disable_web_page_preview=True)
+    await message.reply(mute_message, parse_mode="html", disable_web_page_preview=True)
     pm_message = (
         f"[Mute Report]\nChat: {message.chat.title if message.chat.title else message.chat.id}\n"
         f"User: {user.first_name} {user.last_name if user.last_name else ''} (ID: {user.id}, Username: "
@@ -582,7 +581,7 @@ async def xmute_user(client, message):
         try:
             await client.restrict_chat_member(chat_id, user.id, full_permissions)
             await message.reply(f"✅ <b>{user.first_name}</b> đã được mở MUTE sau {maybe_time}!<br>" +
-                                random.choice(funny_messages).format(name=user.first_name), parse_mode="HTML")
+                                random.choice(funny_messages).format(name=user.first_name), parse_mode="html")
         except Exception as e:
             await message.reply(f"❌ Không thể mở MUTE! Lỗi: {e}")
 
@@ -611,7 +610,7 @@ async def xanxa_user(client, message):
     try:
         await client.unban_chat_member(chat_id, user.id)
         await message.reply(f"🕊️ <b>{user.first_name}</b> đã được xóa án Tử!<br>" +
-                            random.choice(funny_messages).format(name=user.first_name), parse_mode="HTML")
+                            random.choice(funny_messages).format(name=user.first_name), parse_mode="html")
     except Exception as e:
         await message.reply(f"❌ Không thể xóa án ban! Lỗi: {e}")
 
@@ -648,7 +647,7 @@ async def xunmute_user(client, message):
     try:
         await client.restrict_chat_member(chat_id, user.id, full_permissions)
         await message.reply(f"🎤 <b>{user.first_name}</b> đã được XUNmute và được cấp lại đầy đủ quyền!<br>" +
-                            random.choice(funny_messages).format(name=user.first_name), parse_mode="HTML")
+                            random.choice(funny_messages).format(name=user.first_name), parse_mode="html")
     except Exception as e:
         await message.reply(f"❌ Không thể mở mute! Lỗi: {e}")
 
@@ -737,7 +736,6 @@ async def name_change_handler(client, event: ChatMemberUpdated):
         # Nếu không có thay đổi, thoát
         if old_first == new_first and old_last == new_last and old_username == new_username:
             return
-        # Tạo thông báo theo định dạng yêu cầu
         msg = (
             f"Shizuku check🪪:<br>"
             f"ID: {new_user.id} đã đổi thông tin✍️<br>"
@@ -749,7 +747,7 @@ async def name_change_handler(client, event: ChatMemberUpdated):
             f"🐱 Tên mới: {new_first}<br>"
             f"🐳 Username mới: {'@' + new_username if new_username != 'Không có' else new_username}"
         )
-        await client.send_message(event.chat.id, msg, parse_mode="HTML")
+        await client.send_message(event.chat.id, msg, parse_mode="html")
         # Cập nhật thông tin người dùng vào DB
         save_user_orm(event.chat.id, new_user, int(datetime.now().timestamp()))
     except Exception as e:
@@ -784,7 +782,7 @@ async def member_left_handler(client, event: ChatMemberUpdated):
                     f"🆔 <b>ID:</b> {user.id}<br>"
                     f"🔗 <b>Username:</b> {'@' + user.username if user.username else 'Không có'}"
                 )
-            await client.send_message(chat_id, farewell_message, parse_mode="HTML")
+            await client.send_message(chat_id, farewell_message, parse_mode="html")
 
 # -------------------------------
 # CHẠY BOT
