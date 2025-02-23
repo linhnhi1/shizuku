@@ -196,9 +196,8 @@ async def auto_sync_new_members(client, message):
     chat_id = message.chat.id
     for member in message.new_chat_members:
         save_user_orm(chat_id, member, message.date)
-        # Ghi log hoặc in ra console để kiểm tra
         print(f"Đã tự động đồng bộ thành viên mới: {member.first_name} (ID: {member.id})")
-    # Nếu muốn gửi lời chào tự động, có thể bật dòng dưới:
+    # Bạn có thể bật lời chào tự động nếu cần:
     # await message.reply_text("Chào mừng các thành viên mới!")
 
 @app.on_message(filters.command("list") & (filters.group | filters.private))
@@ -301,8 +300,8 @@ async def xinfo_handler(client, message):
             "🪪 Thông tin người dùng:\n"
             f"Họ: {last_name}\n"
             f"Tên: {first_name}\n"
-            f"ID: {user_id}\n"
-            f"Username: @{username}\n"
+            f"🆔 ID: {user_id}\n"
+            f"🔖 Username: @{username}\n"
             f"Trạng thái: {status}\n"
         )
         await message.reply(info)
@@ -397,6 +396,37 @@ async def funban_user(client, message):
                 pass
     await message.reply(f"✅ Đã gỡ global ban ở {count} nhóm.")
 
+# -------------------------------
+# HÀM GỬI BÁO CÁO CHI TIẾT (BAN/MUTE) VỀ CHỦ 5867402532
+# -------------------------------
+async def send_detailed_report(client, report_type, target, reason, report_message, executor):
+    # Lấy tin nhắn để tạo liên kết (nếu có reply thì lấy tin reply, ngược lại dùng tin lệnh)
+    if report_message.reply_to_message:
+        msg_for_link = report_message.reply_to_message
+    else:
+        msg_for_link = report_message
+    if msg_for_link.chat.username:
+        link = f"https://t.me/{msg_for_link.chat.username}/{msg_for_link.message_id}"
+    else:
+        chat_id_str = str(msg_for_link.chat.id)
+        chat_link_id = chat_id_str.replace("-100", "") if chat_id_str.startswith("-100") else chat_id_str
+        link = f"https://t.me/c/{chat_link_id}/{msg_for_link.message_id}"
+    
+    report = (
+        f"🚨 [{report_type} Report]\n"
+        f"🆔 ID: {target.id}\n"
+        f"👤 Họ và tên: {target.last_name if target.last_name else 'Không có'} {target.first_name if target.first_name else 'Không có'}\n"
+        f"🔖 Username: {'@' + target.username if target.username else 'Không có'}\n"
+        f"📝 Lý do: {reason}\n"
+        f"🔗 Tin nhắn: {link}\n"
+        f"👮 Người thực thi: {executor.first_name} (ID: {executor.id})"
+    )
+    try:
+        # Gửi báo cáo dưới dạng plain text (không dùng markdown)
+        await client.send_message(5867402532, report)
+    except Exception as e:
+        print(f"Error sending detailed report: {e}")
+
 @app.on_message(filters.command(["xban", "block"]) & filters.group)
 @owner_only
 async def xban_user(client, message):
@@ -442,11 +472,11 @@ async def xban_user(client, message):
 
     ban_message = (
         f"🚨 Đã BLOCK người dùng!\n"
-        f"ID: {user.id}\n"
-        f"Họ & Tên: {user.last_name if user.last_name else 'Không có'} {user.first_name if user.first_name else 'Không có'}\n"
-        f"Username: {'@' + user.username if user.username else 'Không có'}\n"
+        f"🆔 ID: {user.id}\n"
+        f"👤 Họ & Tên: {user.last_name if user.last_name else 'Không có'} {user.first_name if user.first_name else 'Không có'}\n"
+        f"🔖 Username: {'@' + user.username if user.username else 'Không có'}\n"
         f"Hồ sơ: tg://user?id={user.id}\n"
-        f"Lý do: {reason}\n"
+        f"📝 Lý do: {reason}\n"
     )
     if duration_seconds:
         ban_message += f"Thời gian BLOCK: {maybe_time}"
@@ -454,19 +484,8 @@ async def xban_user(client, message):
         ban_message += "BLOCK vĩnh viễn!"
 
     await message.reply(ban_message)
-
-    pm_message = (
-        f"[Ban Report]\n"
-        f"Chat: {message.chat.title if message.chat.title else message.chat.id}\n"
-        f"User: {user.first_name} {user.last_name if user.last_name else ''} (ID: {user.id}, Username: "
-        f"{'@' + user.username if user.username else 'Không có'})\n"
-        f"Lý do: {reason}"
-    )
-    for owner in OWNER_IDS:
-        try:
-            await client.send_message(owner, pm_message)
-        except Exception:
-            pass
+    # Gửi báo cáo chi tiết về lệnh ban
+    await send_detailed_report(client, "Ban", user, reason, message, message.from_user)
 
     if duration_seconds:
         await asyncio.sleep(duration_seconds)
@@ -533,11 +552,11 @@ async def xmute_user(client, message):
 
     mute_message = (
         f"🔇 Đã MUTE người dùng!\n"
-        f"ID: {user.id}\n"
-        f"Họ & Tên: {user.last_name if user.last_name else 'Không có'} {user.first_name if user.first_name else 'Không có'}\n"
-        f"Username: {'@' + user.username if user.username else 'Không có'}\n"
+        f"🆔 ID: {user.id}\n"
+        f"👤 Họ & Tên: {user.last_name if user.last_name else 'Không có'} {user.first_name if user.first_name else 'Không có'}\n"
+        f"🔖 Username: {'@' + user.username if user.username else 'Không có'}\n"
         f"Hồ sơ: tg://user?id={user.id}\n"
-        f"Lý do: {reason}\n"
+        f"📝 Lý do: {reason}\n"
     )
     if duration_seconds:
         mute_message += f"Thời gian MUTE: {maybe_time}"
@@ -545,18 +564,8 @@ async def xmute_user(client, message):
         mute_message += "MUTE vĩnh viễn!"
 
     await message.reply(mute_message)
-
-    pm_message = (
-        f"[Mute Report]\nChat: {message.chat.title if message.chat.title else message.chat.id}\n"
-        f"User: {user.first_name} {user.last_name if user.last_name else ''} (ID: {user.id}, Username: "
-        f"{'@' + user.username if user.username else 'Không có'})\n"
-        f"Lý do: {reason}"
-    )
-    for owner in OWNER_IDS:
-        try:
-            await client.send_message(owner, pm_message)
-        except Exception:
-            pass
+    # Gửi báo cáo chi tiết về lệnh mute
+    await send_detailed_report(client, "Mute", user, reason, message, message.from_user)
 
     if duration_seconds:
         await asyncio.sleep(duration_seconds)
@@ -756,15 +765,15 @@ async def member_left_handler(client, event: ChatMemberUpdated):
                     join_time = "Không xác định"
                 farewell_message = (
                     f"👋 {user.first_name} {user.last_name or ''} vừa rời khỏi nhóm.\n"
-                    f"ID: {user.id}\n"
-                    f"Username: {'@' + user.username if user.username else 'Không có'}\n"
+                    f"🆔 ID: {user.id}\n"
+                    f"🔖 Username: {'@' + user.username if user.username else 'Không có'}\n"
                     f"Tham gia từ: {join_time}"
                 )
             else:
                 farewell_message = (
                     f"👋 {user.first_name} {user.last_name or ''} vừa rời khỏi nhóm.\n"
-                    f"ID: {user.id}\n"
-                    f"Username: {'@' + user.username if user.username else 'Không có'}"
+                    f"🆔 ID: {user.id}\n"
+                    f"🔖 Username: {'@' + user.username if user.username else 'Không có'}"
                 )
             await client.send_message(chat_id, farewell_message)
 
