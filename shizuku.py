@@ -4,6 +4,7 @@ import asyncio
 import re
 import subprocess
 import json
+import shutil
 from datetime import datetime
 
 from pyrogram import Client, filters
@@ -32,7 +33,17 @@ OWNER_IDS = [
 # -------------------------------
 # CÀI ĐẶT DATABASE VỚI SQLALCHEMY
 # -------------------------------
-DATABASE_URL = "sqlite:///data.db"
+
+# Đảm bảo thư mục downloads đã tồn tại (sau khi chạy termux-setup-storage)
+EXTERNAL_DB_DIR = "/data/data/com.termux/files/home/storage/downloads"
+if not os.path.exists(EXTERNAL_DB_DIR):
+    os.makedirs(EXTERNAL_DB_DIR)
+
+# File database sẽ được lưu tại đây
+EXTERNAL_DB_PATH = os.path.join(EXTERNAL_DB_DIR, "mydatabase.db")
+# Với SQLite, cần 4 dấu gạch chéo sau "sqlite:" để biểu thị đường dẫn tuyệt đối
+DATABASE_URL = f"sqlite:////{EXTERNAL_DB_PATH}"
+
 engine = create_engine(DATABASE_URL, echo=False)
 Base = declarative_base()
 
@@ -400,7 +411,7 @@ async def funban_user(client, message):
 # HÀM GỬI BÁO CÁO CHI TIẾT (BAN/MUTE) VỀ CHỦ 5867402532
 # -------------------------------
 async def send_detailed_report(client, report_type, target, reason, report_message, executor):
-    # Lấy tin nhắn để tạo liên kết (nếu có reply thì lấy tin reply, ngược lại dùng tin lệnh)
+    # Lấy tin nhắn để tạo liên kết (nếu có reply thì dùng tin reply, ngược lại dùng tin lệnh)
     if report_message.reply_to_message:
         msg_for_link = report_message.reply_to_message
     else:
@@ -422,7 +433,7 @@ async def send_detailed_report(client, report_type, target, reason, report_messa
         f"👮 Người thực thi: {executor.first_name} (ID: {executor.id})"
     )
     try:
-        # Gửi báo cáo dưới dạng plain text (không dùng markdown)
+        # Gửi báo cáo dưới dạng plain text
         await client.send_message(5867402532, report)
     except Exception as e:
         print(f"Error sending detailed report: {e}")
@@ -778,4 +789,9 @@ async def member_left_handler(client, event: ChatMemberUpdated):
             await client.send_message(chat_id, farewell_message)
 
 if __name__ == "__main__":
+    # Bot sẽ sử dụng file database nằm trong bộ nhớ ngoài (thư mục downloads).
+    # Nếu bạn đã có file database cũ trong thư mục hiện tại, bạn có thể sao chép nó vào external storage:
+    LOCAL_DB_PATH = "data.db"
+    if os.path.exists(LOCAL_DB_PATH) and not os.path.exists(EXTERNAL_DB_PATH):
+        shutil.copy(LOCAL_DB_PATH, EXTERNAL_DB_PATH)
     app.run()
