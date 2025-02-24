@@ -6,7 +6,8 @@ import subprocess
 import json
 import shutil
 from datetime import datetime
-
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.orm import declarative_base, sessionmaker
 from pyrogram import Client, filters
 from pyrogram.types import ChatPermissions, ChatMemberUpdated, InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -14,9 +15,8 @@ from pyrogram.types import ChatPermissions, ChatMemberUpdated, InlineKeyboardMar
 # Import SQLAlchemy và thiết lập ORM
 # -------------------------------
 from sqlalchemy import create_engine, Column, String, Integer
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-
+from sqlalchemy.orm import declarative_base
 # -------------------------------
 # THÔNG TIN API – thay đổi theo thông tin của bạn
 # -------------------------------
@@ -31,15 +31,20 @@ OWNER_IDS = [5867402532, 6370114941, 6922955912, 5161512205, 1906855234, 6247748
 # CÀI ĐẶT DATABASE VỚI SQLALCHEMY
 # -------------------------------
 
-# Đảm bảo thư mục downloads đã tồn tại (sau khi chạy termux-setup-storage)
-EXTERNAL_DB_DIR = "/data/data/com.termux/files/home/storage/downloads"
+# Nếu chạy trên Windows, sử dụng thư mục "data" trong thư mục hiện tại,
+# còn nếu không thì dùng đường dẫn gốc Termux như cũ
+if os.name == "nt":
+    EXTERNAL_DB_DIR = os.path.join(os.getcwd(), "data")
+else:
+    EXTERNAL_DB_DIR = "/data/data/com.termux/files/home/storage/downloads"
+
 if not os.path.exists(EXTERNAL_DB_DIR):
     os.makedirs(EXTERNAL_DB_DIR)
 
 # File database sẽ được lưu tại đây
 EXTERNAL_DB_PATH = os.path.join(EXTERNAL_DB_DIR, "mydatabase.db")
-# Với SQLite, cần 4 dấu gạch chéo sau "sqlite:" để biểu thị đường dẫn tuyệt đối
-DATABASE_URL = f"sqlite:////{EXTERNAL_DB_PATH}"
+# Với SQLite, sử dụng 3 dấu gạch chéo cho đường dẫn tuyệt đối trên Windows
+DATABASE_URL = f"sqlite:///{EXTERNAL_DB_PATH}"
 
 engine = create_engine(DATABASE_URL, echo=False)
 Base = declarative_base()
@@ -298,7 +303,7 @@ async def xinfo_handler(client, message):
                 elif member.status in ["administrator", "creator"]:
                     status = "Admin/Tể tướng"
                 else:
-                    status = "member/Lính Quènnn"
+                    status = "member/Thường dân"
             except Exception as e:
                 status = f"Không xác định ({e})"
         else:
