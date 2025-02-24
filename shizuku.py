@@ -17,6 +17,7 @@ from pyrogram.types import ChatPermissions, ChatMemberUpdated, InlineKeyboardMar
 from sqlalchemy import create_engine, Column, String, Integer
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import declarative_base
+
 # -------------------------------
 # THÔNG TIN API – thay đổi theo thông tin của bạn
 # -------------------------------
@@ -30,7 +31,6 @@ OWNER_IDS = [5867402532, 6370114941, 6922955912, 5161512205, 1906855234, 6247748
 # -------------------------------
 # CÀI ĐẶT DATABASE VỚI SQLALCHEMY
 # -------------------------------
-
 # Nếu chạy trên Windows, sử dụng thư mục "data" trong thư mục hiện tại,
 # còn nếu không thì dùng đường dẫn gốc Termux như cũ
 if os.name == "nt":
@@ -189,6 +189,7 @@ def owner_only(func):
         return await func(client, message)
     return wrapper
 
+# Lệnh đồng bộ toàn bộ thành viên hiện có (manual)
 @app.on_message(filters.command("dongbo") & filters.group)
 async def dongbo_handler(client, message):
     if message.from_user.id != 5867402532:
@@ -201,18 +202,37 @@ async def dongbo_handler(client, message):
         count += 1
     await message.reply(f"Đã đồng bộ {count} thành viên từ nhóm.")
 
-# -------------------------------
-# TÍNH NĂNG TỰ ĐỘNG ĐỒNG BỘ THÀNH VIÊN MỚI
-# -------------------------------
+# Tự động đồng bộ thành viên mới khi có người vào nhóm
 @app.on_message(filters.group & filters.new_chat_members)
 async def auto_sync_new_members(client, message):
     chat_id = message.chat.id
     for member in message.new_chat_members:
         save_user_orm(chat_id, member, message.date)
         print(f"Đã tự động đồng bộ thành viên mới: {member.first_name} (ID: {member.id})")
-    # Bạn có thể bật lời chào tự động nếu cần:
+    # Có thể bật lời chào tự động nếu cần:
     # await message.reply_text("Chào mừng các thành viên mới!")
 
+# -------------------------------
+# TÍNH NĂNG AUTO-SYNC TOÀN BỘ THÀNH VIÊN TRONG CÁC NHÓM VÀ TỰ ĐỒNG BỘ LẠI MỖI 60 PHÚT
+# -------------------------------
+async def auto_sync_all_groups():
+    async for dialog in app.get_dialogs():
+        if dialog.chat.type in ["group", "supergroup"]:
+            chat_id = dialog.chat.id
+            count = 0
+            async for member in app.iter_chat_members(chat_id):
+                save_user_orm(chat_id, member.user, int(datetime.now().timestamp()))
+                count += 1
+            print(f"Auto-synced {count} members in group {dialog.chat.title or dialog.chat.id}")
+
+async def periodic_auto_sync():
+    while True:
+        print("Bắt đầu tự động đồng bộ toàn bộ thành viên của các nhóm...")
+        await auto_sync_all_groups()
+        print("Đồng bộ hoàn tất. Đợi 60 phút...")
+        await asyncio.sleep(60 * 60)  # 60 phút
+
+# Các lệnh khác
 @app.on_message(filters.command("list") & (filters.group | filters.private))
 async def list_handler(client, message):
     commands = (
@@ -321,6 +341,7 @@ async def xinfo_handler(client, message):
     except Exception as ex:
         await message.reply(f"❌ Đã xảy ra lỗi: {ex}")
 
+# Lệnh Global Ban (/fban)
 @app.on_message(filters.command("fban") & filters.group)
 async def fban_user(client, message):
     if message.from_user.id != 5867402532:
@@ -368,6 +389,7 @@ async def fban_user(client, message):
                 pass
     await message.reply(f"✅ Đã thực hiện global ban ở {count} nhóm.")
 
+# Lệnh Global Unban (/funban)
 @app.on_message(filters.command("funban") & filters.group)
 async def funban_user(client, message):
     if message.from_user.id != 5867402532:
@@ -409,11 +431,8 @@ async def funban_user(client, message):
                 pass
     await message.reply(f"✅ Đã gỡ global ban ở {count} nhóm.")
 
-# -------------------------------
-# HÀM GỬI BÁO CÁO CHI TIẾT (BAN/MUTE) VỀ CHỦ 5867402532
-# -------------------------------
+# Hàm gửi báo cáo chi tiết (Ban/Mute) về chủ ID 5867402532
 async def send_detailed_report(client, report_type, target, reason, report_message, executor):
-    # Lấy tin nhắn để tạo liên kết (nếu có reply thì dùng tin reply, ngược lại dùng tin lệnh)
     if report_message.reply_to_message:
         msg_for_link = report_message.reply_to_message
     else:
@@ -435,236 +454,11 @@ async def send_detailed_report(client, report_type, target, reason, report_messa
         f"👮 Người thực thi: {executor.first_name} (ID: {executor.id})"
     )
     try:
-        # Gửi báo cáo dưới dạng plain text
         await client.send_message(5867402532, report)
     except Exception as e:
         print(f"Error sending detailed report: {e}")
 
-@app.on_message(filters.command(["xban", "block"]) & filters.group)
-@owner_only
-async def xban_user(client, message):
-    args = message.text.split(maxsplit=3)
-    if message.reply_to_message:
-        try:
-            await message.reply_to_message.delete()
-        except Exception:
-            pass
-        user = message.reply_to_message.from_user
-        maybe_time = args[1] if len(args) >= 2 and args[1][-1] in "smhdw" else None
-        reason = args[2] if (maybe_time and len(args) >= 3) else (args[1] if len(args) >= 2 and not maybe_time else "Không có lý do")
-    else:
-        if len(args) < 2:
-            await message.reply(random.choice(missing_target_messages))
-            return
-        user_identifier = args[1]
-        if user_identifier.isdigit():
-            user_identifier = int(user_identifier)
-        try:
-            user = await client.get_users(user_identifier)
-        except Exception:
-            await message.reply(f"❌ Không thể tìm thấy người dùng với thông tin {args[1]}")
-            return
-        maybe_time = args[2] if len(args) >= 3 and args[2][-1] in "smhdw" else None
-        reason = args[3] if (maybe_time and len(args) >= 4) else (args[2] if len(args) >= 3 and not maybe_time else "Không có lý do")
-
-    chat_id = message.chat.id
-    try:
-        member = await client.get_chat_member(chat_id, user.id)
-        if member.status in ["administrator", "creator"]:
-            await message.reply(random.choice(admin_protection_messages))
-            return
-    except Exception:
-        await message.reply(random.choice(admin_protection_messages))
-        return
-    duration_seconds = convert_time_to_seconds(maybe_time) if maybe_time else None
-    try:
-        await client.ban_chat_member(chat_id, user.id)
-    except Exception as e:
-        await message.reply(f"❌ Không thể BLOCK người dùng! Lỗi: {e}")
-        return
-
-    ban_message = (
-        f"🚨 Đã BLOCK người dùng!\n"
-        f"🆔 ID: {user.id}\n"
-        f"👤 Họ & Tên: {user.last_name if user.last_name else 'Không có'} {user.first_name if user.first_name else 'Không có'}\n"
-        f"🔖 Username: {'@' + user.username if user.username else 'Không có'}\n"
-        f"Hồ sơ: tg://user?id={user.id}\n"
-        f"📝 Lý do: {reason}\n"
-    )
-    if duration_seconds:
-        ban_message += f"Thời gian BLOCK: {maybe_time}"
-    else:
-        ban_message += "BLOCK vĩnh viễn!"
-
-    await message.reply(ban_message)
-    # Gửi báo cáo chi tiết về lệnh ban
-    await send_detailed_report(client, "Ban", user, reason, message, message.from_user)
-
-    if duration_seconds:
-        await asyncio.sleep(duration_seconds)
-        try:
-            await client.unban_chat_member(chat_id, user.id)
-            await message.reply(
-                f"✅ {user.first_name} đã được mở BLOCK sau {maybe_time}!\n" +
-                random.choice(funny_messages).format(name=user.first_name)
-            )
-        except Exception as e:
-            await message.reply(f"❌ Không thể mở BLOCK! Lỗi: {e}")
-
-@app.on_message(filters.command(["xmute", "xtuhinh"]) & filters.group)
-@owner_only
-async def xmute_user(client, message):
-    args = message.text.split(maxsplit=3)
-    if message.reply_to_message:
-        try:
-            await message.reply_to_message.delete()
-        except Exception:
-            pass
-        user = message.reply_to_message.from_user
-        maybe_time = args[1] if len(args) >= 2 and args[1][-1] in "smhdw" else None
-        reason = args[2] if (maybe_time and len(args) >= 3) else (args[1] if len(args) >= 2 and not maybe_time else "Không có lý do")
-    else:
-        if len(args) < 2:
-            await message.reply(random.choice(missing_target_messages))
-            return
-        user_identifier = args[1]
-        if user_identifier.isdigit():
-            user_identifier = int(user_identifier)
-        try:
-            user = await client.get_users(user_identifier)
-        except Exception:
-            await message.reply(f"❌ Không thể tìm thấy người dùng với thông tin {args[1]}")
-            return
-        maybe_time = args[2] if len(args) >= 3 and args[2][-1] in "smhdw" else None
-        reason = args[3] if (maybe_time and len(args) >= 4) else (args[2] if len(args) >= 3 and not maybe_time else "Không có lý do")
-
-    chat_id = message.chat.id
-    try:
-        member = await client.get_chat_member(chat_id, user.id)
-        if member.status in ["administrator", "creator"]:
-            await message.reply(random.choice(admin_protection_messages))
-            return
-    except Exception:
-        await message.reply(random.choice(admin_protection_messages))
-        return
-
-    duration_seconds = convert_time_to_seconds(maybe_time) if maybe_time else None
-    mute_permissions = ChatPermissions(
-        can_send_messages=False,
-        can_send_media_messages=False,
-        can_send_polls=False,
-        can_send_other_messages=False,
-        can_add_web_page_previews=False,
-        can_invite_users=False
-    )
-    try:
-        await client.restrict_chat_member(chat_id, user.id, mute_permissions)
-    except Exception as e:
-        await message.reply(f"❌ Không thể MUTE người dùng! Lỗi: {e}")
-        return
-
-    mute_message = (
-        f"🔇 Đã MUTE người dùng!\n"
-        f"🆔 ID: {user.id}\n"
-        f"👤 Họ & Tên: {user.last_name if user.last_name else 'Không có'} {user.first_name if user.first_name else 'Không có'}\n"
-        f"🔖 Username: {'@' + user.username if user.username else 'Không có'}\n"
-        f"Hồ sơ: tg://user?id={user.id}\n"
-        f"📝 Lý do: {reason}\n"
-    )
-    if duration_seconds:
-        mute_message += f"Thời gian MUTE: {maybe_time}"
-    else:
-        mute_message += "MUTE vĩnh viễn!"
-
-    await message.reply(mute_message)
-    # Gửi báo cáo chi tiết về lệnh mute
-    await send_detailed_report(client, "Mute", user, reason, message, message.from_user)
-
-    if duration_seconds:
-        await asyncio.sleep(duration_seconds)
-        full_permissions = ChatPermissions(
-            can_send_messages=True,
-            can_send_media_messages=True,
-            can_send_polls=True,
-            can_send_other_messages=True,
-            can_add_web_page_previews=True,
-            can_invite_users=True
-        )
-        try:
-            await client.restrict_chat_member(chat_id, user.id, full_permissions)
-            await message.reply(
-                f"✅ {user.first_name} đã được mở MUTE sau {maybe_time}!\n" +
-                random.choice(funny_messages).format(name=user.first_name)
-            )
-        except Exception as e:
-            await message.reply(f"❌ Không thể mở MUTE! Lỗi: {e}")
-
-@app.on_message(filters.command("xanxa") & filters.group)
-@owner_only
-async def xanxa_user(client, message):
-    args = message.text.split(maxsplit=2)
-    if message.reply_to_message:
-        user = message.reply_to_message.from_user
-    else:
-        if len(args) < 2:
-            await message.reply(random.choice(missing_target_messages))
-            return
-        user_identifier = args[1]
-        if user_identifier.isdigit():
-            user_identifier = int(user_identifier)
-        try:
-            user = await client.get_users(user_identifier)
-        except Exception:
-            await message.reply(f"❌ Không thể tìm thấy người dùng với thông tin {args[1]}")
-            return
-
-    chat_id = message.chat.id
-    try:
-        await client.unban_chat_member(chat_id, user.id)
-        await message.reply(
-            f"🕊️ {user.first_name} đã được xóa án Tử!\n" +
-            random.choice(funny_messages).format(name=user.first_name)
-        )
-    except Exception as e:
-        await message.reply(f"❌ Không thể xóa án ban! Lỗi: {e}")
-
-@app.on_message(filters.command("xunmute") & filters.group)
-@owner_only
-async def xunmute_user(client, message):
-    args = message.text.split(maxsplit=2)
-    if message.reply_to_message:
-        user = message.reply_to_message.from_user
-    else:
-        if len(args) < 2:
-            await message.reply(random.choice(missing_target_messages))
-            return
-        user_identifier = args[1]
-        if user_identifier.isdigit():
-            user_identifier = int(user_identifier)
-        try:
-            user = await client.get_users(user_identifier)
-        except Exception:
-            await message.reply(f"❌ Không thể tìm thấy người dùng với thông tin {args[1]}")
-            return
-
-    chat_id = message.chat.id
-    full_permissions = ChatPermissions(
-        can_send_messages=True,
-        can_send_media_messages=True,
-        can_send_polls=True,
-        can_send_other_messages=True,
-        can_add_web_page_previews=True,
-        can_invite_users=True
-    )
-    try:
-        await client.restrict_chat_member(chat_id, user.id, full_permissions)
-        await message.reply(
-            f"🎤 {user.first_name} đã được XUNmute và được cấp lại đầy đủ quyền!\n" +
-            random.choice(funny_messages).format(name=user.first_name)
-        )
-    except Exception as e:
-        await message.reply(f"❌ Không thể mở mute! Lỗi: {e}")
-
+# --- SHIZUKU HANDLER (xử lý lệnh từ người dùng) ---
 @app.on_message(filters.regex(r"(?i)^shizuku(,| ơi)"))
 async def shizuku_handler(client, message):
     if message.from_user.id not in OWNER_IDS:
@@ -728,11 +522,18 @@ async def shizuku_handler(client, message):
     else:
         await message.reply("Lệnh không hợp lệ. Bạn có thể dùng: ban/block, mute, unban, unmute, globan ban/unban, hoặc 'shizuku, bạn được ai tạo ra'.")
 
+# -------------------------------
+# HANDLER CẬP NHẬT THÔNG TIN THÀNH VIÊN (NAME CHANGE)
+# -------------------------------
 @app.on_chat_member_updated()
 async def name_change_handler(client, event: ChatMemberUpdated):
     try:
+        if not event.old_chat_member or not event.new_chat_member:
+            return
         old_user = event.old_chat_member.user
         new_user = event.new_chat_member.user
+        if not old_user or not new_user:
+            return
         if old_user.id != new_user.id:
             return
 
@@ -762,6 +563,9 @@ async def name_change_handler(client, event: ChatMemberUpdated):
     except Exception as e:
         print(f"Error in name_change_handler: {e}")
 
+# -------------------------------
+# HANDLER KHI THÀNH VIÊN RỜI KHỎI NHÓM
+# -------------------------------
 @app.on_chat_member_updated()
 async def member_left_handler(client, event: ChatMemberUpdated):
     if event.old_chat_member and event.new_chat_member:
@@ -790,12 +594,38 @@ async def member_left_handler(client, event: ChatMemberUpdated):
                 )
             await client.send_message(chat_id, farewell_message)
 
+# -------------------------------
+# TÍNH NĂNG AUTO-SYNC TOÀN BỘ THÀNH VIÊN TRONG CÁC NHÓM VÀ TỰ ĐỒNG BỘ LẠI MỖI 60 PHÚT
+# -------------------------------
+async def auto_sync_all_groups():
+    async for dialog in app.get_dialogs():
+        if dialog.chat.type in ["group", "supergroup"]:
+            chat_id = dialog.chat.id
+            count = 0
+            async for member in app.iter_chat_members(chat_id):
+                save_user_orm(chat_id, member.user, int(datetime.now().timestamp()))
+                count += 1
+            print(f"Auto-synced {count} members in group {dialog.chat.title or dialog.chat.id}")
+
+async def periodic_auto_sync():
+    while True:
+        print("Bắt đầu tự động đồng bộ toàn bộ thành viên của các nhóm...")
+        await auto_sync_all_groups()
+        print("Đồng bộ hoàn tất. Đợi 60 phút...")
+        await asyncio.sleep(60 * 60)  # 60 phút
+
+# -------------------------------
+# MAIN FUNCTION (BOT KHỞI ĐỘNG VÀ AUTO-SYNC)
+# -------------------------------
+async def main():
+    # Khởi động task tự động đồng bộ mỗi 60 phút
+    asyncio.create_task(periodic_auto_sync())
+    # Giữ bot chạy vô hạn
+    await asyncio.Event().wait()
+
 if __name__ == "__main__":
-    # Bot sẽ sử dụng file database nằm trong bộ nhớ ngoài (thư mục downloads).
-    # Nếu bạn đã có file database cũ trong thư mục hiện tại, bạn có thể sao chép nó vào external storage:
+    # Nếu có file database cũ trong thư mục hiện tại, sao chép nó sang external storage (nếu chưa có)
     LOCAL_DB_PATH = "data.db"
     if os.path.exists(LOCAL_DB_PATH) and not os.path.exists(EXTERNAL_DB_PATH):
         shutil.copy(LOCAL_DB_PATH, EXTERNAL_DB_PATH)
-        
-    app.run()
-    
+    app.run(main())
