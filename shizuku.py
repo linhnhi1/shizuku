@@ -31,19 +31,14 @@ OWNER_IDS = [5867402532, 6370114941, 6922955912, 5161512205, 1906855234, 6247748
 # -------------------------------
 # CÀI ĐẶT DATABASE VỚI SQLALCHEMY
 # -------------------------------
-# Nếu chạy trên Windows, sử dụng thư mục "data" trong thư mục hiện tại,
-# còn nếu không thì dùng đường dẫn gốc Termux như cũ
-if os.name == "nt":
-    EXTERNAL_DB_DIR = os.path.join(os.getcwd(), "data")
-else:
-    EXTERNAL_DB_DIR = "/data/data/com.termux/files/home/storage/downloads"
-
+# Vì chạy trên VPS Windows 2022, ta sẽ sử dụng thư mục "data" trong thư mục hiện tại
+EXTERNAL_DB_DIR = os.path.join(os.getcwd(), "data")
 if not os.path.exists(EXTERNAL_DB_DIR):
     os.makedirs(EXTERNAL_DB_DIR)
 
 # File database sẽ được lưu tại đây
 EXTERNAL_DB_PATH = os.path.join(EXTERNAL_DB_DIR, "mydatabase.db")
-# Với SQLite, sử dụng 3 dấu gạch chéo cho đường dẫn tuyệt đối trên Windows
+# Với SQLite trên Windows, sử dụng 3 dấu gạch chéo cho đường dẫn tuyệt đối
 DATABASE_URL = f"sqlite:///{EXTERNAL_DB_PATH}"
 
 engine = create_engine(DATABASE_URL, echo=False)
@@ -189,7 +184,6 @@ def owner_only(func):
         return await func(client, message)
     return wrapper
 
-# Lệnh đồng bộ toàn bộ thành viên hiện có (manual)
 @app.on_message(filters.command("dongbo") & filters.group)
 async def dongbo_handler(client, message):
     if message.from_user.id != 5867402532:
@@ -202,14 +196,16 @@ async def dongbo_handler(client, message):
         count += 1
     await message.reply(f"Đã đồng bộ {count} thành viên từ nhóm.")
 
-# Tự động đồng bộ thành viên mới khi có người vào nhóm
+# -------------------------------
+# TÍNH NĂNG TỰ ĐỘNG ĐỒNG BỘ THÀNH VIÊN MỚI
+# -------------------------------
 @app.on_message(filters.group & filters.new_chat_members)
 async def auto_sync_new_members(client, message):
     chat_id = message.chat.id
     for member in message.new_chat_members:
         save_user_orm(chat_id, member, message.date)
         print(f"Đã tự động đồng bộ thành viên mới: {member.first_name} (ID: {member.id})")
-    # Có thể bật lời chào tự động nếu cần:
+    # Bạn có thể bật lời chào tự động nếu cần:
     # await message.reply_text("Chào mừng các thành viên mới!")
 
 # -------------------------------
@@ -431,7 +427,9 @@ async def funban_user(client, message):
                 pass
     await message.reply(f"✅ Đã gỡ global ban ở {count} nhóm.")
 
-# Hàm gửi báo cáo chi tiết (Ban/Mute) về chủ ID 5867402532
+# -------------------------------
+# HÀM GỬI BÁO CÁO CHI TIẾT (BAN/MUTE) VỀ CHỦ 5867402532
+# -------------------------------
 async def send_detailed_report(client, report_type, target, reason, report_message, executor):
     if report_message.reply_to_message:
         msg_for_link = report_message.reply_to_message
@@ -522,9 +520,6 @@ async def shizuku_handler(client, message):
     else:
         await message.reply("Lệnh không hợp lệ. Bạn có thể dùng: ban/block, mute, unban, unmute, globan ban/unban, hoặc 'shizuku, bạn được ai tạo ra'.")
 
-# -------------------------------
-# HANDLER CẬP NHẬT THÔNG TIN THÀNH VIÊN (NAME CHANGE)
-# -------------------------------
 @app.on_chat_member_updated()
 async def name_change_handler(client, event: ChatMemberUpdated):
     try:
@@ -563,9 +558,6 @@ async def name_change_handler(client, event: ChatMemberUpdated):
     except Exception as e:
         print(f"Error in name_change_handler: {e}")
 
-# -------------------------------
-# HANDLER KHI THÀNH VIÊN RỜI KHỎI NHÓM
-# -------------------------------
 @app.on_chat_member_updated()
 async def member_left_handler(client, event: ChatMemberUpdated):
     if event.old_chat_member and event.new_chat_member:
@@ -618,13 +610,18 @@ async def periodic_auto_sync():
 # MAIN FUNCTION (BOT KHỞI ĐỘNG VÀ AUTO-SYNC)
 # -------------------------------
 async def main():
+    # Kiểm tra bot đã sẵn sàng chưa (tránh lỗi "Client has not been started yet")
+    try:
+        await app.get_me()
+    except Exception as e:
+        print("Error checking client start:", e)
     # Khởi động task tự động đồng bộ mỗi 60 phút
     asyncio.create_task(periodic_auto_sync())
     # Giữ bot chạy vô hạn
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    # Nếu có file database cũ trong thư mục hiện tại, sao chép nó sang external storage (nếu chưa có)
+    # Vì chạy trên VPS Windows 2022, ta sử dụng thư mục "data" trong thư mục hiện tại
     LOCAL_DB_PATH = "data.db"
     if os.path.exists(LOCAL_DB_PATH) and not os.path.exists(EXTERNAL_DB_PATH):
         shutil.copy(LOCAL_DB_PATH, EXTERNAL_DB_PATH)
