@@ -796,4 +796,6 @@ if __name__ == "__main__":
     LOCAL_DB_PATH = "data.db"
     if os.path.exists(LOCAL_DB_PATH) and not os.path.exists(EXTERNAL_DB_PATH):
         shutil.copy(LOCAL_DB_PATH, EXTERNAL_DB_PATH)
+        
     app.run()
+    
